@@ -1,21 +1,18 @@
-use crate::main;
-use crate::term::*;
-use crate::inet::*;
+use crate::{inet::*, main, term::*};
 
 pub fn get_body(inet: &INet, host: Port) -> Port {
-  return port(addr(enter(inet,host)), 2);
+  return port(addr(enter(inet, host)), 2);
 }
 
 pub fn get_func(inet: &INet, host: Port) -> Port {
-  return port(addr(enter(inet,host)), 0);
+  return port(addr(enter(inet, host)), 0);
 }
 
 pub fn get_argm(inet: &INet, host: Port) -> Port {
-  return port(addr(enter(inet,host)), 1);
+  return port(addr(enter(inet, host)), 1);
 }
 
 pub fn test() {
-
   let code = "
 // Church arithmetic
 def zero = λs λz (z)
@@ -87,17 +84,4 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
   //println!("itt {}", read_at(&inet, ROOT));
   //println!("lam {}", lambda_term_from_inet(&inet));
   //println!("{:?} rewrites", inet.rules);
-
-
 }
-
-
-
-
-
-
-
-
-
-
-

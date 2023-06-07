@@ -11,16 +11,16 @@ pub struct INet {
 }
 
 // Node types are consts because those are used in a Vec<u32>.
-pub const TAG : u32 = 28;
-pub const ERA : u32 = 0 << TAG;
-pub const CON : u32 = 1 << TAG;
-pub const ANN : u32 = 2 << TAG;
-pub const DUP : u32 = 3 << TAG;
-pub const FIX : u32 = 4 << TAG;
-pub const OBS : u32 = 5 << TAG;
+pub const TAG: u32 = 28;
+pub const ERA: u32 = 0 << TAG;
+pub const CON: u32 = 1 << TAG;
+pub const ANN: u32 = 2 << TAG;
+pub const DUP: u32 = 3 << TAG;
+pub const FIX: u32 = 4 << TAG;
+pub const OBS: u32 = 5 << TAG;
 
 // The ROOT port is on the deadlocked root node at address 0.
-pub const ROOT : u32 = 1;
+pub const ROOT: u32 = 1;
 
 // A port is just a u32 combining address (30 bits) and slot (2 bits).
 pub type Port = u32;
@@ -28,15 +28,15 @@ pub type Port = u32;
 // Create a new net, with a deadlocked root node.
 pub fn new_inet() -> INet {
   INet {
-    nodes: vec![2,1,0,0], // p2 points to p0, p1 points to net
+    nodes: vec![2, 1, 0, 0], // p2 points to p0, p1 points to net
     reuse: vec![],
-    rules: 0
+    rules: 0,
   }
 }
 
 // Allocates a new node, reclaiming a freed space if possible.
 pub fn new_node(inet: &mut INet, kind: u32) -> u32 {
-  let node : u32 = match inet.reuse.pop() {
+  let node: u32 = match inet.reuse.pop() {
     Some(index) => index,
     None => {
       let len = inet.nodes.len();
@@ -88,7 +88,7 @@ pub fn link(inet: &mut INet, ptr_a: u32, ptr_b: u32) {
 }
 
 // Reduces a wire to weak normal form.
-pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(u32,u32) -> bool) {
+pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(u32, u32) -> bool) {
   let mut path = vec![];
   let mut prev = root;
   loop {
@@ -100,7 +100,7 @@ pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(u32,u32) -> bool) {
     // If next is a main port...
     if slot(next) == 0 {
       // Checks if caller asked to skip this rule.
-      let skipped = skip(kind(inet,addr(prev)), kind(inet,addr(next)));
+      let skipped = skip(kind(inet, addr(prev)), kind(inet, addr(next)));
       // If prev is a main port, reduce the active pair.
       if slot(prev) == 0 && !skipped {
         inet.rules += 1;
@@ -123,7 +123,7 @@ pub fn normal(inet: &mut INet, root: Port) {
   let mut warp = vec![root];
   let mut tick = 0;
   while let Some(prev) = warp.pop() {
-    reduce(inet, prev, &|ak,bk| false);
+    reduce(inet, prev, &|ak, bk| false);
     let next = enter(inet, prev);
     if slot(next) == 0 {
       warp.push(port(addr(next), 1));
@@ -169,10 +169,7 @@ pub fn rewrite(inet: &mut INet, x: Port, y: Port) {
 // @x(F (G x)) , @x(G (F x)))
 // https://twitter.com/VictorTaelin/status/1659724812057452549
 fn fixpose(inet: &mut INet, a: Port, b: Port) {
-  if kind(inet,addr(a)) == FIX
-  && kind(inet,addr(b)) == FIX
-  && slot(a) == 2
-  && slot(b) == 2 {
+  if kind(inet, addr(a)) == FIX && kind(inet, addr(b)) == FIX && slot(a) == 2 && slot(b) == 2 {
     let ff = enter(inet, port(addr(a), 0));
     let fx = enter(inet, port(addr(a), 1));
     let gg = enter(inet, port(addr(b), 0));
@@ -185,21 +182,21 @@ fn fixpose(inet: &mut INet, a: Port, b: Port) {
     let dw = new_node(inet, FIX + 1);
     let cc = new_node(inet, FIX);
     let rt = new_node(inet, FIX + 1);
-    link(inet, port(fu,0), ff);
-    link(inet, port(fu,1), port(gd,2));
-    link(inet, port(fu,2), port(up,1));
-    link(inet, port(gu,0), gg);
-    link(inet, port(gu,1), port(fd,2));
-    link(inet, port(gu,2), port(up,2));
-    link(inet, port(fd,0), fx);
-    link(inet, port(fd,1), port(dw,2));
-    link(inet, port(gd,0), gx);
-    link(inet, port(gd,1), port(dw,1));
-    link(inet, port(cc,0), port(up,0));
-    link(inet, port(cc,1), port(dw,0));
-    link(inet, port(cc,2), port(rt,0));
-    link(inet, port(rt,1), enter(inet,a));
-    link(inet, port(rt,2), enter(inet,b));
+    link(inet, port(fu, 0), ff);
+    link(inet, port(fu, 1), port(gd, 2));
+    link(inet, port(fu, 2), port(up, 1));
+    link(inet, port(gu, 0), gg);
+    link(inet, port(gu, 1), port(fd, 2));
+    link(inet, port(gu, 2), port(up, 2));
+    link(inet, port(fd, 0), fx);
+    link(inet, port(fd, 1), port(dw, 2));
+    link(inet, port(gd, 0), gx);
+    link(inet, port(gd, 1), port(dw, 1));
+    link(inet, port(cc, 0), port(up, 0));
+    link(inet, port(cc, 1), port(dw, 0));
+    link(inet, port(cc, 2), port(rt, 0));
+    link(inet, port(rt, 1), enter(inet, a));
+    link(inet, port(rt, 2), enter(inet, b));
   }
 }
 
@@ -213,7 +210,7 @@ fn fixpose(inet: &mut INet, a: Port, b: Port) {
 // A cursor has a root port, a prev port, and a map of paths
 //
 // > type Cursor = { root: Port, prev: Port, path: Map<Kind, Path> }
-// 
+//
 // The equality function returns if two nets are equal
 //
 // > eq : INet -> Cursor -> Cursor -> Bool
@@ -239,8 +236,7 @@ fn fixpose(inet: &mut INet, a: Port, b: Port) {
 //
 // The rules above that match on 'a' are repeated for 'b'.
 
-use std::collections::BTreeMap;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 pub struct Cursor<'a> {
   root: Port,
@@ -250,11 +246,7 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
   fn next(&mut self, inet: &mut INet, slot: u8) -> Cursor {
-    Cursor {
-      root: self.root,
-      prev: port(addr(enter(inet, self.prev)), slot as u32),
-      path: self.path,
-    }
+    Cursor { root: self.root, prev: port(addr(enter(inet, self.prev)), slot as u32), path: self.path }
   }
 
   fn push_back(&mut self, kind: u32, slot: u8) {
@@ -301,7 +293,6 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
 
   // Moves one of the cursors forward and compares
   fn advance(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> Option<bool> {
-
     reduce(inet, a.prev, &|ak, bk| ak == FIX || bk == FIX);
 
     let a_next = enter(inet, a.prev);
@@ -317,7 +308,6 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
 
     // If entering main port...
     } else if slot(enter(inet, a.prev)) == 0 {
-
       // If deque isn't empty, pop_back a slot and move to it
       if let Some(slot) = a.pop_back(a_kind) {
         //println!("enter main (pass)");
@@ -329,7 +319,7 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
       // If deque is empty, move to slots [1,2] and push_front to the *other* deque
       } else {
         //println!("enter main (split)");
-        for slot in [2,1] {
+        for slot in [2, 1] {
           b.push_front(a_kind, slot);
           let an = &mut a.next(inet, slot);
           let eq = compare(inet, an, b);
@@ -365,7 +355,7 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
   // If both are fixed-point, check `@x (f (g x)) == @x (g (f x))`
   let a_next = enter(inet, a.prev);
   let b_next = enter(inet, b.prev);
-  if kind(inet,addr(a_next)) == FIX && kind(inet,addr(b_next)) == FIX {
+  if kind(inet, addr(a_next)) == FIX && kind(inet, addr(b_next)) == FIX {
     // If both ports are different, apply the fixpose transformation and compare
     if a_next != b_next {
       fixpose(inet, a_next, b_next);
@@ -373,8 +363,8 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
     }
     // If both ports are identical on slot 2, enter the merged fixpoint and compare
     if slot(a_next) == 2 {
-      let a = &mut a.next(inet,0);
-      let b = &mut b.next(inet,0);
+      let a = &mut a.next(inet, 0);
+      let b = &mut b.next(inet, 0);
       return compare(inet, a, b);
     }
   }

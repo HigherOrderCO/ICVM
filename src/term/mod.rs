@@ -4,50 +4,47 @@ mod as_net;
 mod syntax;
 mod views;
 
-pub use self::as_net::*;
-pub use self::syntax::*;
-pub use self::views::*;
+pub use self::{as_net::*, syntax::*, views::*};
 
-use std::collections::*;
 use inet::*;
-use std;
+use std::{self, collections::*};
 
 // Terms of the Interaction Calculus.
 #[derive(Clone, Debug)]
 pub enum Term {
   // Abstractions
-  Lam {nam: Vec<u8>, typ: Option<Box<Term>>, bod: Box<Term>},                
+  Lam { nam: Vec<u8>, typ: Option<Box<Term>>, bod: Box<Term> },
 
   // Applications
-  App {fun: Box<Term>, arg: Box<Term>},
+  App { fun: Box<Term>, arg: Box<Term> },
 
   // Superpositions
-  Sup {tag: u32, fst: Box<Term>, snd: Box<Term>},
+  Sup { tag: u32, fst: Box<Term>, snd: Box<Term> },
 
   // Duplications
-  Dup {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
+  Dup { tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term> },
 
   // Recursion
-  Fix {nam: Vec<u8>, bod: Box<Term>},
+  Fix { nam: Vec<u8>, bod: Box<Term> },
 
   // Annotations
-  Ann {val: Box<Term>, typ: Box<Term>},
+  Ann { val: Box<Term>, typ: Box<Term> },
 
   // Variables
-  Var {nam: Vec<u8>}, 
+  Var { nam: Vec<u8> },
 
   // Erasure
-  Set
+  Set,
 }
 
-use self::Term::{*};
+use self::Term::*;
 
 // Source code is Ascii-encoded.
 pub type Str = [u8];
 pub type Chr = u8;
 
 // Converts an index to a name
-pub fn index_to_name(idx : u32) -> Vec<Chr> {
+pub fn index_to_name(idx: u32) -> Vec<Chr> {
   let mut name = Vec::new();
   let mut idx = idx;
   while idx > 0 {
@@ -59,8 +56,8 @@ pub fn index_to_name(idx : u32) -> Vec<Chr> {
 }
 
 // Converts a name to an index
-pub fn name_to_index(name : &Vec<Chr>) -> u32 {
-  let mut idx : u32 = 0;
+pub fn name_to_index(name: &Vec<Chr>) -> u32 {
+  let mut idx: u32 = 0;
   for byte in name.iter().rev() {
     idx = (idx * 26) + (*byte as u32 - 97) + 1;
   }
@@ -71,18 +68,18 @@ pub fn name_to_index(name : &Vec<Chr>) -> u32 {
 type Context<'a> = Vec<(&'a Str, Option<Term>)>;
 
 // Extends a context with a (name, value) assignments.
-fn extend<'a,'b>(nam : &'a Str, val : Option<Term>, ctx : &'b mut Context<'a>) -> &'b mut Context<'a> {
-  ctx.push((nam,val));
+fn extend<'a, 'b>(nam: &'a Str, val: Option<Term>, ctx: &'b mut Context<'a>) -> &'b mut Context<'a> {
+  ctx.push((nam, val));
   ctx
 }
 
 // Removes an assignment from a context.
-fn narrow<'a,'b>(ctx : &'b mut Context<'a>) -> &'b mut Context<'a> {
+fn narrow<'a, 'b>(ctx: &'b mut Context<'a>) -> &'b mut Context<'a> {
   ctx.pop();
   ctx
 }
 
-pub fn namespace(space : &Vec<u8>, idx : u32, var : &Vec<u8>) -> Vec<u8> {
+pub fn namespace(space: &Vec<u8>, idx: u32, var: &Vec<u8>) -> Vec<u8> {
   if var != b"*" {
     let mut nam = space.clone();
     nam.extend_from_slice(b"/");
@@ -96,48 +93,48 @@ pub fn namespace(space : &Vec<u8>, idx : u32, var : &Vec<u8>) -> Vec<u8> {
 }
 
 // Makes a namespaced copy of a term
-pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
+pub fn copy(space: &Vec<u8>, idx: u32, term: &Term) -> Term {
   match term {
-    Lam{nam, typ, bod} => {
+    Lam { nam, typ, bod } => {
       let nam = namespace(space, idx, nam);
       let typ = typ.as_ref().map(|typ| Box::new(copy(space, idx, typ)));
       let bod = Box::new(copy(space, idx, bod));
-      Lam{nam, typ, bod}
-    },
-    App{fun, arg} => {
+      Lam { nam, typ, bod }
+    }
+    App { fun, arg } => {
       let fun = Box::new(copy(space, idx, fun));
       let arg = Box::new(copy(space, idx, arg));
-      App{fun, arg}
-    },
-    Sup{tag, fst, snd} => {
+      App { fun, arg }
+    }
+    Sup { tag, fst, snd } => {
       let tag = *tag;
       let fst = Box::new(copy(space, idx, fst));
       let snd = Box::new(copy(space, idx, snd));
-      Sup{tag, fst, snd}
-    },
-    Dup{tag, fst, snd, val, nxt} => {
+      Sup { tag, fst, snd }
+    }
+    Dup { tag, fst, snd, val, nxt } => {
       let tag = *tag;
       let fst = namespace(space, idx, fst);
       let snd = namespace(space, idx, snd);
       let val = Box::new(copy(space, idx, val));
       let nxt = Box::new(copy(space, idx, nxt));
-      Dup{tag, fst, snd, val, nxt}
-    },
-    Fix{nam, bod} => {
+      Dup { tag, fst, snd, val, nxt }
+    }
+    Fix { nam, bod } => {
       let nam = namespace(space, idx, nam);
       let bod = Box::new(copy(space, idx, bod));
-      Fix{nam, bod}
-    },
-    Ann{val, typ} => {
+      Fix { nam, bod }
+    }
+    Ann { val, typ } => {
       let val = Box::new(copy(space, idx, val));
       let typ = Box::new(copy(space, idx, typ));
-      Ann{val, typ}
-    },
-    Var{nam} => {
+      Ann { val, typ }
+    }
+    Var { nam } => {
       let nam = namespace(space, idx, nam);
-      Var{nam}
-    },
-    Set => Set
+      Var { nam }
+    }
+    Set => Set,
   }
 }
 
@@ -149,14 +146,14 @@ impl std::fmt::Display for Term {
 }
 
 // Reduces an Interaction Calculus term through Interaction Combinators.
-pub fn normalize(term : &Term) -> Term {
-  let mut net : INet = new_inet();
+pub fn normalize(term: &Term) -> Term {
+  let mut net: INet = new_inet();
   alloc_at(&mut net, &term, ROOT);
   normal(&mut net, ROOT);
   read_at(&net, ROOT)
 }
 
-pub fn normalize_with_stats(term : &Term) -> (Term, u32) {
+pub fn normalize_with_stats(term: &Term) -> (Term, u32) {
   let mut net = new_inet();
   alloc_at(&mut net, &term, ROOT);
   normal(&mut net, ROOT);

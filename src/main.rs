@@ -6,17 +6,15 @@
 #![allow(unreachable_code)]
 
 extern crate clap;
-use clap::{Arg, App};
+use clap::{App, Arg};
 
-mod term;
 mod inet;
+mod term;
 mod test;
 
 use term::*;
 
-use std::io;
-use std::io::prelude::*;
-use std::fs::File;
+use std::{fs::File, io, io::prelude::*};
 
 fn main() {
   return test::test();
@@ -25,10 +23,7 @@ fn main() {
     .version("1.0")
     .author("Victor Taelin <victor.taelin@gmail.com>")
     .about("Interaction Calculus CLI")
-    .arg(Arg::with_name("file")
-      .help("The input file to process")
-      .required(true)
-      .index(1))
+    .arg(Arg::with_name("file").help("The input file to process").required(true).index(1))
     .get_matches();
 
   let file_name = matches.value_of("file").unwrap();
