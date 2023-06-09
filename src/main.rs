@@ -31,8 +31,8 @@ fn main() {
   let mut code = String::new();
   file.read_to_string(&mut code).expect("Unable to read the file");
 
-  let term = term::from_string(code.as_bytes());
-  let (norm, rules) = term::normalize_with_stats(&term);
+  let (term, functions) = term::from_string(code.as_bytes());
+  let (norm, rules) = term::normalize_with_stats(&term, &functions);
 
   println!("{}\n", norm);
   println!("{:?} rewrites", rules);

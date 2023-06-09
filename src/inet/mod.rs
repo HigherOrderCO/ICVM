@@ -17,7 +17,8 @@ pub const CON: u32 = 1 << TAG;
 pub const ANN: u32 = 2 << TAG;
 pub const DUP: u32 = 3 << TAG;
 pub const FIX: u32 = 4 << TAG;
-pub const OBS: u32 = 5 << TAG;
+// pub const OBS: u32 = 5 << TAG;
+pub const FUN: u32 = 6 << TAG;
 
 // The ROOT port is on the deadlocked root node at address 0.
 pub const ROOT: u32 = 1;

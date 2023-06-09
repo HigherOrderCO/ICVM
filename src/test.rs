@@ -1,4 +1,6 @@
 use crate::{inet::*, main, term::*};
+use itertools::Itertools;
+use std::collections::HashMap;
 
 pub fn get_body(inet: &INet, host: Port) -> Port {
   return port(addr(enter(inet, host)), 2);
@@ -62,19 +64,23 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
 ";
 
   //  Creates initial term
-  let term = from_string(code.as_bytes());
+  let (term, function_book) = from_string(code.as_bytes());
+
+  println!("{:#?}", function_book.functions);
+  println!("{}", term);
+  println!("{:?}", term);
 
   // Creates the net from term
   let mut inet = new_inet();
-  alloc_at(&mut inet, &term, ROOT);
+  alloc_at(&mut inet, &term, ROOT, &function_book);
 
   // Equal
   let body = get_body(&inet, ROOT);
   let arg0 = get_argm(&inet, get_func(&inet, body));
   let arg1 = get_argm(&inet, body);
   //println!("{}", read_at(&inet, ROOT));
-  println!("a = {}", read_at(&inet, arg0));
-  println!("b = {}", read_at(&inet, arg1));
+  println!("a = {}", read_at(&inet, arg0, &function_book));
+  println!("b = {}", read_at(&inet, arg1, &function_book));
   let eq = equal(&mut inet, arg0, arg1);
   println!("");
   println!("[[a==b : {}]]", eq);
