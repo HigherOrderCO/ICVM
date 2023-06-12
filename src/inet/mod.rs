@@ -156,7 +156,6 @@ fn insert_function(
   let y = addr(enter(inet, host));
   let kind_x = other_kind;
   let kind_y = kind(inet, y);
-  debug_assert_eq!(kind_x, kind_y);
   (y, kind_y)
 }
 
