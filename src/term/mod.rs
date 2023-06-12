@@ -149,14 +149,14 @@ impl std::fmt::Display for Term {
 pub fn normalize(term: &Term, function_book: &FunctionBook) -> Term {
   let mut net: INet = new_inet();
   alloc_at(&mut net, &term, ROOT, function_book);
-  normal(&mut net, ROOT);
+  normal(&mut net, function_book, ROOT);
   read_at(&net, ROOT, function_book)
 }
 
 pub fn normalize_with_stats(term: &Term, function_book: &FunctionBook) -> (Term, u32) {
   let mut net = new_inet();
   alloc_at(&mut net, &term, ROOT, function_book);
-  normal(&mut net, ROOT);
+  normal(&mut net, function_book, ROOT);
   let term = read_at(&net, ROOT, function_book);
   (term, net.rules)
 }

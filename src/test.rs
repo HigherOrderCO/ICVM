@@ -66,7 +66,7 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
   //  Creates initial term
   let (term, function_book) = from_string(code.as_bytes());
 
-  println!("{:#?}", function_book.functions);
+  println!("{:#?}", function_book.function_name_to_term);
   println!("{}", term);
   println!("{:?}", term);
 
@@ -81,7 +81,7 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
   //println!("{}", read_at(&inet, ROOT));
   println!("a = {}", read_at(&inet, arg0, &function_book));
   println!("b = {}", read_at(&inet, arg1, &function_book));
-  let eq = equal(&mut inet, arg0, arg1);
+  let eq = equal(&mut inet, &function_book, arg0, arg1);
   println!("");
   println!("[[a==b : {}]]", eq);
 

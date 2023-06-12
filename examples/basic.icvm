@@ -1,0 +1,8 @@
+def Z = λs λz (z)
+def S = λn λs λz (s n)
+def Node = λa λb λn λl (n a b)
+def Leaf = λn λl l
+// Node (S (S (S Z))) Leaf
+// Node Z Z
+(S (S (S Z)))
+// (S Z)

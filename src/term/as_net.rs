@@ -160,7 +160,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
       }
       None => {
         let name = std::str::from_utf8(nam).unwrap();
-        if let Some(term) = function_book.functions.get(name) {
+        if let Some(term) = function_book.function_name_to_term.get(name) {
           let function_id = function_book.function_name_to_id[name];
           // println!("ID {name}: {function_id}");
           let node = new_node(inet, FUN + function_id);
@@ -289,7 +289,7 @@ pub fn read_at(net: &INet, host: Port, function_book: &FunctionBook) -> Term {
         // We shouldn't be able to visit a port 0
         _ => Set,
       },
-      tag if tag & !((1 << TAG) - 1) == FUN => {
+      tag if tag & TAG_MASK == FUN => {
         Var { nam: function_book.function_id_to_name[(tag - FUN) as usize].as_bytes().to_vec() }
       }
       // If we're visiting a fan node...

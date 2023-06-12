@@ -71,11 +71,11 @@ pub fn parse_term<'a>(
       let code = parse_text(code, b"=").unwrap();
       let (code, val) = parse_term(code, ctx, idx, functions);
       let code = if code[0] == b';' { &code[1 ..] } else { code };
-      extend(nam, Some(val.clone()), ctx);
+      // extend(nam, Some(val.clone()), ctx);
       let name = String::from_utf8_lossy(nam).to_string();
       assert!(functions.insert(name.clone(), val).is_none(), "Duplicate definition: {name}");
       let (code, bod) = parse_term(code, ctx, idx, functions);
-      narrow(ctx);
+      // narrow(ctx);
       (code, bod)
     }
     // Typed Abstraction: `λ(var: Type) body`
@@ -197,14 +197,19 @@ pub type FunctionName = String;
 pub type FunctionId = u32;
 
 pub struct FunctionBook {
-  pub functions: HashMap<FunctionName, Term>,
+  pub function_name_to_term: HashMap<FunctionName, Term>,
+  pub function_id_to_term: Vec<Term>,
   pub function_id_to_name: Vec<FunctionName>,
   pub function_name_to_id: HashMap<FunctionName, FunctionId>,
 }
 
 impl FunctionBook {
-  fn new(functions: HashMap<String, Term>) -> Self {
-    let function_id_to_name = functions.keys().cloned().sorted().collect_vec();
+  fn new(function_name_to_term: HashMap<String, Term>) -> Self {
+    let (function_id_to_name, function_id_to_term): (Vec<_>, Vec<_>) = function_name_to_term
+      .iter()
+      .sorted_by_key(|&(name, _)| name)
+      .map(|(name, term)| (name.clone(), term.clone()))
+      .unzip();
 
     let function_name_to_id = function_id_to_name
       .iter()
@@ -212,7 +217,7 @@ impl FunctionBook {
       .map(|(i, name)| (name.to_owned(), i as FunctionId))
       .collect::<HashMap<FunctionName, FunctionId>>();
 
-    Self { functions, function_id_to_name, function_name_to_id }
+    Self { function_name_to_term, function_id_to_term, function_id_to_name, function_name_to_id }
   }
 }
 
