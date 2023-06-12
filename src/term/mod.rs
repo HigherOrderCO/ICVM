@@ -7,7 +7,7 @@ mod views;
 pub use self::{as_net::*, syntax::*, views::*};
 
 use crate::inet::*;
-use std::{self, collections::*};
+use std::{self, collections::*, time::Instant};
 
 // Terms of the Interaction Calculus.
 #[derive(Clone, Debug)]
@@ -153,10 +153,14 @@ pub fn normalize(term: &Term, function_book: &FunctionBook) -> Term {
   read_at(&net, ROOT, function_book)
 }
 
-pub fn normalize_with_stats(term: &Term, function_book: &FunctionBook) -> (Term, u32) {
+pub fn normalize_with_stats(term: &Term, function_book: &FunctionBook) -> (Term, u32, f64) {
   let mut net = new_inet();
   alloc_at(&mut net, &term, ROOT, function_book);
+
+  let time = Instant::now();
   normal(&mut net, function_book, ROOT);
+  let elapsed_s = time.elapsed().as_secs_f64();
+
   let term = read_at(&net, ROOT, function_book);
-  (term, net.rules)
+  (term, net.rewrite_count, elapsed_s)
 }

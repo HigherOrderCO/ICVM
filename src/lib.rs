@@ -5,3 +5,7 @@
 
 pub mod inet;
 pub mod term;
+
+use std::sync::OnceLock;
+
+pub static DEBUG: OnceLock<bool> = OnceLock::new();

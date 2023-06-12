@@ -7,7 +7,7 @@
 pub struct INet {
   pub nodes: Vec<u32>,
   pub reuse: Vec<u32>,
-  pub rules: u32,
+  pub rewrite_count: u32,
 }
 
 pub type NodeKind = u32;
@@ -35,7 +35,7 @@ pub fn new_inet() -> INet {
   INet {
     nodes: vec![2, 1, 0, 0], // p2 points to p0, p1 points to net
     reuse: vec![],
-    rules: 0,
+    rewrite_count: 0,
   }
 }
 
@@ -108,8 +108,14 @@ pub fn reduce(inet: &mut INet, function_book: &FunctionBook, root: Port, skip: &
       let skipped = skip(kind(inet, addr(prev)), kind(inet, addr(next)));
       // If prev is a main port, reduce the active pair.
       if slot(prev) == 0 && !skipped {
-        inet.rules += 1;
+        inet.rewrite_count += 1;
         rewrite(inet, function_book, addr(prev), addr(next));
+
+        if DEBUG.get().copied().unwrap_or_default() {
+          let term = read_at(inet, ROOT, function_book);
+          println!("R: {}", term);
+        }
+
         prev = path.pop().unwrap();
         continue;
       // Otherwise, return the axiom.
@@ -133,6 +139,11 @@ pub fn normal(inet: &mut INet, function_book: &FunctionBook, root: Port) {
     if slot(next) == 0 {
       warp.push(port(addr(next), 1));
       warp.push(port(addr(next), 2));
+    }
+
+    if DEBUG.get().copied().unwrap_or_default() {
+      let term = read_at(inet, ROOT, function_book);
+      println!("N: {}", term);
     }
   }
 }
@@ -275,9 +286,11 @@ fn fixpose(inet: &mut INet, a: Port, b: Port) {
 //
 // The rules above that match on 'a' are repeated for 'b'.
 
+use crate::{
+  term::{alloc_at, read_at, FunctionBook},
+  DEBUG,
+};
 use std::collections::{BTreeMap, VecDeque};
-
-use crate::term::{alloc_at, FunctionBook};
 
 pub struct Cursor<'a> {
   root: Port,

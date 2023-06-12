@@ -5,35 +5,50 @@
 #![allow(unused_variables)]
 #![allow(unreachable_code)]
 
-extern crate clap;
-use clap::{App, Arg};
-
-mod inet;
-mod term;
 mod test;
 
-use term::*;
+use clap::Parser;
+use ic::*;
+use std::{
+  fs::{self, File},
+  io,
+  io::prelude::*,
+  path::PathBuf,
+};
 
-use std::{fs::File, io, io::prelude::*};
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+  /// Print elapsed time, rewrites, rewrites-per-second
+  #[arg(short, long)]
+  stats: bool,
+
+  /// Print net after every reduction step
+  #[arg(short, long)]
+  debug: bool,
+
+  /// File containing the source code of the program
+  file_path: PathBuf,
+}
 
 fn main() {
   // return test::test();
 
-  let matches = App::new("My App")
-    .version("1.0")
-    .author("Victor Taelin <victor.taelin@gmail.com>")
-    .about("Interaction Calculus CLI")
-    .arg(Arg::with_name("file").help("The input file to process").required(true).index(1))
-    .get_matches();
+  let args = Args::parse();
+  DEBUG.set(args.debug).unwrap();
 
-  let file_name = matches.value_of("file").unwrap();
-  let mut file = File::open(file_name).expect("Unable to open the file");
-  let mut code = String::new();
-  file.read_to_string(&mut code).expect("Unable to read the file");
+  let code = fs::read_to_string(&args.file_path).expect("Unable to read the file");
 
-  let (term, functions) = term::from_string(code.as_bytes());
-  let (norm, rules) = term::normalize_with_stats(&term, &functions);
+  let (term, function_book) = term::from_string(code.as_bytes());
 
-  println!("{}\n", norm);
-  println!("{:?} rewrites", rules);
+  if args.stats {
+    let (norm, reduction_count, elapsed_s) = term::normalize_with_stats(&term, &function_book);
+    println!("{}\n", norm);
+
+    let rps_m = reduction_count as f64 / elapsed_s / 1_000_000.0;
+    println!("[TIME: {elapsed_s:.2}s | COST: {reduction_count} | RPS: {rps_m:.3}m]");
+  } else {
+    let norm = term::normalize(&term, &function_book);
+    println!("{}", norm);
+  }
 }

@@ -12,7 +12,7 @@ name = "ic"
 path = "src/lib.rs"
 
 [dependencies]
-clap = "2.26.0"
+clap = { version = "4.3.1", features = ["derive"] }
 im = "15.1.0"
 itertools = "0.10.5"
 
