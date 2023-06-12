@@ -71,11 +71,11 @@ pub fn parse_term<'a>(
       let code = parse_text(code, b"=").unwrap();
       let (code, val) = parse_term(code, ctx, idx, functions);
       let code = if code[0] == b';' { &code[1 ..] } else { code };
-      // extend(nam, Some(val), ctx);
+      extend(nam, Some(val.clone()), ctx);
       let name = String::from_utf8_lossy(nam).to_string();
       assert!(functions.insert(name.clone(), val).is_none(), "Duplicate definition: {name}");
       let (code, bod) = parse_term(code, ctx, idx, functions);
-      // narrow(ctx);
+      narrow(ctx);
       (code, bod)
     }
     // Typed Abstraction: `λ(var: Type) body`

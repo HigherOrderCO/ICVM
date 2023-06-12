@@ -17,7 +17,7 @@ use term::*;
 use std::{fs::File, io, io::prelude::*};
 
 fn main() {
-  return test::test();
+  // return test::test();
 
   let matches = App::new("My App")
     .version("1.0")
