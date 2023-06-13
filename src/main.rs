@@ -5,8 +5,6 @@
 #![allow(unused_variables)]
 #![allow(unreachable_code)]
 
-mod test;
-
 use clap::Parser;
 use ic::*;
 use std::{
@@ -32,8 +30,6 @@ struct Args {
 }
 
 fn main() {
-  // return test::test();
-
   let args = Args::parse();
   DEBUG.set(args.debug).unwrap();
 

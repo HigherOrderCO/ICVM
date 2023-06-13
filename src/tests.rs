@@ -1,20 +1,21 @@
-use crate::{inet::*, main, term::*};
+use crate::{inet::*, term::*};
 use itertools::Itertools;
 use std::collections::HashMap;
 
-pub fn get_body(inet: &INet, host: Port) -> Port {
-  return port(addr(enter(inet, host)), 2);
-}
+#[test]
+fn test_equal() {
+  pub fn get_body(inet: &INet, host: Port) -> Port {
+    return port(addr(enter(inet, host)), 2);
+  }
 
-pub fn get_func(inet: &INet, host: Port) -> Port {
-  return port(addr(enter(inet, host)), 0);
-}
+  pub fn get_func(inet: &INet, host: Port) -> Port {
+    return port(addr(enter(inet, host)), 0);
+  }
 
-pub fn get_argm(inet: &INet, host: Port) -> Port {
-  return port(addr(enter(inet, host)), 1);
-}
+  pub fn get_argm(inet: &INet, host: Port) -> Port {
+    return port(addr(enter(inet, host)), 1);
+  }
 
-pub fn test() {
   let code = "
 // Church arithmetic
 def zero = λs λz (z)
@@ -84,10 +85,20 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
   let eq = equal(&mut inet, &function_book, arg0, arg1);
   println!("");
   println!("[[a==b : {}]]", eq);
+  assert!(eq);
 
   // Normal
   //normal(&mut inet, ROOT);
   //println!("itt {}", read_at(&inet, ROOT));
   //println!("lam {}", lambda_term_from_inet(&inet));
   //println!("{:?} rewrites", inet.rules);
+}
+
+#[test]
+fn test_build_jump_table() {
+  let code = "λn (n (λp (S (S (F p)))) Z)";
+  let (term, function_book) = from_string(code.as_bytes());
+  let jump_table =
+    build_jump_table(&term).map(|jt| jt.into_iter().map(|term| term.to_string()).collect_vec());
+  assert_eq!(jump_table, Some(vec!["λp (S (S (F p)))".into(), "Z".into()]));
 }
