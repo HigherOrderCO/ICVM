@@ -103,9 +103,13 @@ fn test_build_jump_table() {
     assert_eq!(jump_table, expected_jump_table);
   }
 
-  // case S => (λp (S (S (F p))))
+  // case S => λp (S (S (F p)))
   // case Z => Z
   expect_jump_table("λn (n (λp (S (S (F p)))) Z)", Some(vec!["λp (S (S (F p)))".into(), "Z".into()]));
+
+  // case S => λp (p)
+  // case Z => Z
+  expect_jump_table("λn (n (λp(p)) Z)", Some(vec!["λp p".into(), "Z".into()]));
 
   // This calls `x`, not `n`, thus it's not suitable for fast dispatch
   expect_jump_table("λn (x (λp (S (S (F p)))) Z)", None);

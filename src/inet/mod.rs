@@ -160,7 +160,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: Port, y: Port) 
     other_kind: NodeKind,
   ) -> (u32, NodeKind) {
     let function_id = (fun_kind - FUN) as usize;
-    let function_term = &function_book.function_id_to_term[function_id];
+    let function_term = &function_book.function_id_to_terms[function_id].0;
     let host = port(other, 0);
     alloc_at(inet, function_term, host, function_book);
 

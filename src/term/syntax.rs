@@ -196,7 +196,7 @@ pub fn parse_term<'a>(
 /// Functions that match on scott-encoded args can be split
 /// to have a jump-table for the cases
 /// E.g. λn (n (λp (S (S (F p)))) Z)
-/// case S => (λp (S (S (F p))))
+/// case S => λp (S (S (F p)))
 /// case Z => Z
 pub fn build_jump_table(term: &Term) -> Option<Vec<Term>> {
   match &term {
@@ -224,7 +224,7 @@ pub type FunctionId = u32;
 
 pub struct FunctionBook {
   pub function_name_to_term: HashMap<FunctionName, Term>,
-  pub function_id_to_term: Vec<Term>,
+  pub function_id_to_terms: Vec<(Term, Option<Vec<Term>>)>,
   pub function_id_to_name: Vec<FunctionName>,
   pub function_name_to_id: HashMap<FunctionName, FunctionId>,
 }
@@ -239,10 +239,10 @@ impl FunctionBook {
       })
       .collect::<HashMap<_, _>>();
 
-    let (function_id_to_name, function_id_to_term): (Vec<_>, Vec<_>) = function_name_to_term
-      .iter()
+    let (function_id_to_name, function_id_to_terms): (Vec<_>, Vec<_>) = function_name_to_terms
+      .into_iter()
       .sorted_by_key(|&(name, _)| name)
-      .map(|(name, term)| (name.clone(), term.clone()))
+      .map(|(name, (term, jump_table_terms))| (name.clone(), (term.clone(), jump_table_terms.clone())))
       .unzip();
 
     let function_name_to_id = function_id_to_name
@@ -251,7 +251,7 @@ impl FunctionBook {
       .map(|(i, name)| (name.to_owned(), i as FunctionId))
       .collect::<HashMap<FunctionName, FunctionId>>();
 
-    Self { function_name_to_term, function_id_to_term, function_id_to_name, function_name_to_id }
+    Self { function_name_to_term, function_id_to_terms, function_id_to_name, function_name_to_id }
   }
 }
 
