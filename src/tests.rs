@@ -96,9 +96,20 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
 
 #[test]
 fn test_build_jump_table() {
-  let code = "λn (n (λp (S (S (F p)))) Z)";
-  let (term, function_book) = from_string(code.as_bytes());
-  let jump_table =
-    build_jump_table(&term).map(|jt| jt.into_iter().map(|term| term.to_string()).collect_vec());
-  assert_eq!(jump_table, Some(vec!["λp (S (S (F p)))".into(), "Z".into()]));
+  fn expect_jump_table(code: &str, expected_jump_table: Option<Vec<String>>) {
+    let (term, function_book) = from_string(code.as_bytes());
+    let jump_table =
+      build_jump_table(&term).map(|jt| jt.into_iter().map(|term| term.to_string()).collect_vec());
+    assert_eq!(jump_table, expected_jump_table);
+  }
+
+  // case S => (λp (S (S (F p))))
+  // case Z => Z
+  expect_jump_table("λn (n (λp (S (S (F p)))) Z)", Some(vec!["λp (S (S (F p)))".into(), "Z".into()]));
+
+  // This calls `x`, not `n`, thus it's not suitable for fast dispatch
+  expect_jump_table("λn (x (λp (S (S (F p)))) Z)", None);
+
+  // Also not suitable
+  expect_jump_table("λn (n)", None);
 }
