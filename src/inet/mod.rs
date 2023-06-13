@@ -148,30 +148,30 @@ pub fn normal(inet: &mut INet, function_book: &FunctionBook, root: Port) {
   }
 }
 
-/// Insert the function body in place of the FUN node
-fn insert_function(
-  inet: &mut INet,
-  function_book: &FunctionBook,
-  fun: Port,
-  other: Port,
-  fun_kind: NodeKind,
-  other_kind: NodeKind,
-) -> (u32, NodeKind) {
-  let function_id = (fun_kind - FUN) as usize;
-  let function_term = &function_book.function_id_to_term[function_id];
-  let host = port(other, 0);
-  alloc_at(inet, function_term, host, function_book);
-
-  inet.reuse.push(fun);
-
-  let y = addr(enter(inet, host));
-  let kind_x = other_kind;
-  let kind_y = kind(inet, y);
-  (y, kind_y)
-}
-
 /// Rewrites an active pair
 pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: Port, y: Port) {
+  /// Insert the function body in place of the FUN node
+  fn insert_function(
+    inet: &mut INet,
+    function_book: &FunctionBook,
+    fun: Port,
+    other: Port,
+    fun_kind: NodeKind,
+    other_kind: NodeKind,
+  ) -> (u32, NodeKind) {
+    let function_id = (fun_kind - FUN) as usize;
+    let function_term = &function_book.function_id_to_term[function_id];
+    let host = port(other, 0);
+    alloc_at(inet, function_term, host, function_book);
+
+    inet.reuse.push(fun);
+
+    let y = addr(enter(inet, host));
+    let kind_x = other_kind;
+    let kind_y = kind(inet, y);
+    (y, kind_y)
+  }
+
   let kind_x = kind(inet, x);
   let kind_y = kind(inet, y);
 

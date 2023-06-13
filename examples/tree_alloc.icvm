@@ -13,4 +13,5 @@ def Destroy = (Y λdestroy λt (t (λaλb dup #d destroy1 destroy2 = destroy; (a
 
 // (S (S (S Z)))
 // (Alloc (S (S (S Z))))
-(Destroy (Alloc (S (S (S Z)))))
+(Alloc Z)
+// (Destroy (Alloc (S (S (S Z)))))

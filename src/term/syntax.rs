@@ -205,6 +205,39 @@ pub struct FunctionBook {
 
 impl FunctionBook {
   fn new(function_name_to_term: HashMap<String, Term>) -> Self {
+    let function_name_to_terms = function_name_to_term
+      .iter()
+      .map(|(name, term)| {
+        /// Functions that match on scott-encoded args can be split
+        /// to have a jump-table for the cases
+        /// E.g. λn (n (λp (S (S (F p)))) Z)
+        /// case S => (λp (S (S (F p))))
+        /// case Z => Z
+        fn build_jump_table(term: &Term) -> Option<Vec<Term>> {
+          match &term {
+            Lam { nam, typ, bod } => {
+              let mut next = &**bod;
+              let mut jump_table = vec![];
+              while !matches!(next, Var { nam: n } if n == nam) {
+                match next {
+                  App { fun, arg } => {
+                    jump_table.push((**arg).clone());
+                    next = fun;
+                  }
+                  _ => return None,
+                }
+              }
+              jump_table.reverse(); // Args were pushed in reverse order (outermost application first)
+              (!jump_table.is_empty()).then_some(jump_table)
+            }
+            _ => None,
+          }
+        }
+        let jump_table = build_jump_table(&term);
+        (name, (term, jump_table))
+      })
+      .collect::<HashMap<_, _>>();
+
     let (function_id_to_name, function_id_to_term): (Vec<_>, Vec<_>) = function_name_to_term
       .iter()
       .sorted_by_key(|&(name, _)| name)
