@@ -201,13 +201,13 @@ pub fn parse_term<'a>(
 pub fn build_jump_table(term: &Term) -> Option<Vec<Term>> {
   match &term {
     Lam { nam, typ, bod } => {
-      let mut next = &**bod;
+      let mut next_inner_app = &**bod;
       let mut jump_table = vec![];
-      while !matches!(next, Var { nam: n } if n == nam) {
-        match next {
+      while !matches!(next_inner_app, Var { nam: n } if n == nam) {
+        match next_inner_app {
           App { fun, arg } => {
             jump_table.push((**arg).clone());
-            next = fun;
+            next_inner_app = fun;
           }
           _ => return None,
         }

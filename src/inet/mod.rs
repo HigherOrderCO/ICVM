@@ -30,6 +30,10 @@ pub const ROOT: u32 = 1;
 // A port is just a u32 combining address (30 bits) and slot (2 bits).
 pub type Port = u32;
 
+pub type NodeId = u32;
+
+pub type SlotId = u32;
+
 // Create a new net, with a deadlocked root node.
 pub fn new_inet() -> INet {
   INet {
@@ -40,7 +44,7 @@ pub fn new_inet() -> INet {
 }
 
 // Allocates a new node, reclaiming a freed space if possible.
-pub fn new_node(inet: &mut INet, kind: u32) -> u32 {
+pub fn new_node(inet: &mut INet, kind: u32) -> NodeId {
   let node: u32 = match inet.reuse.pop() {
     Some(index) => index,
     None => {
@@ -57,18 +61,18 @@ pub fn new_node(inet: &mut INet, kind: u32) -> u32 {
 }
 
 // Builds a port (an address / slot pair).
-pub fn port(node: u32, slot: u32) -> Port {
+pub fn port(node: NodeId, slot: u32) -> Port {
   (node << 2) | slot
 }
 
 // Returns the address of a port (TODO: rename).
-pub fn addr(port: Port) -> u32 {
+pub fn addr(port: Port) -> NodeId {
   port >> 2
 }
 
 // Returns the slot of a port.
-pub fn slot(port: Port) -> u32 {
-  port & 3
+pub fn slot(port: Port) -> SlotId {
+  port & 0b11
 }
 
 // Enters a port, returning the port on the other side.
@@ -77,23 +81,28 @@ pub fn enter(inet: &INet, port: Port) -> Port {
 }
 
 // Enters a slot on the node pointed by this port.
-pub fn get(inet: &INet, p: Port, s: u32) -> Port {
+pub fn get(inet: &INet, p: Port, s: SlotId) -> Port {
   enter(inet, port(addr(p), s))
 }
 
 // Kind of the node.
-pub fn kind(inet: &INet, node: u32) -> u32 {
+pub fn kind(inet: &INet, node: NodeId) -> NodeKind {
   inet.nodes[port(node, 3) as usize]
 }
 
 // Links two ports.
-pub fn link(inet: &mut INet, ptr_a: u32, ptr_b: u32) {
+pub fn link(inet: &mut INet, ptr_a: Port, ptr_b: Port) {
   inet.nodes[ptr_a as usize] = ptr_b;
   inet.nodes[ptr_b as usize] = ptr_a;
 }
 
 // Reduces a wire to weak normal form.
-pub fn reduce(inet: &mut INet, function_book: &FunctionBook, root: Port, skip: &dyn Fn(u32, u32) -> bool) {
+pub fn reduce(
+  inet: &mut INet,
+  function_book: &FunctionBook,
+  root: Port,
+  skip: &dyn Fn(NodeKind, NodeKind) -> bool,
+) {
   let mut path = vec![];
   let mut prev = root;
   loop {
@@ -149,27 +158,127 @@ pub fn normal(inet: &mut INet, function_book: &FunctionBook, root: Port) {
 }
 
 /// Rewrites an active pair
-pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: Port, y: Port) {
+pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: NodeId) {
   /// Insert the function body in place of the FUN node
   fn insert_function(
     inet: &mut INet,
     function_book: &FunctionBook,
-    fun: Port,
-    other: Port,
+    fun: NodeId,
+    other: NodeId,
     fun_kind: NodeKind,
     other_kind: NodeKind,
   ) -> (u32, NodeKind) {
     let function_id = (fun_kind - FUN) as usize;
-    let function_term = &function_book.function_id_to_terms[function_id].0;
-    let host = port(other, 0);
-    alloc_at(inet, function_term, host, function_book);
+    let function_terms = &function_book.function_id_to_terms[function_id];
+    let fast_dispatch_call = if let Some(jump_table) = &function_terms.1 {
+      if other_kind == CON {
+        let cases = jump_table.len();
+        let ret = enter(inet, port(other, 2));
+        let arg = enter(inet, port(other, 1));
+        // TODO: Handle kind == FUN
+        let mut next_port_0_of_con = arg;
+        let mut con_nodes_visited = 0;
+        // Find the first non-ERA arg, but check that there are exactly as many lambda (CON) nodes as there
+        // are cases in the jump table, and the others have ERA args.
+        // Essentially this pattern: λa λb λc (b x y z)
+        // - There are 3 lambda (CON) nodes in the jump table
+        // - Only one of the args (constructors) gets used, the others are linked to ERA nodes.
+        let mut only_non_era_arg = None;
+        let mut final_lambda_node_body_port = Port::MAX;
+        let found_matching_constructor_call = loop {
+          let node = addr(next_port_0_of_con);
+          if slot(next_port_0_of_con) == 0 && kind(inet, node) == CON {
+            let arg_port = enter(inet, port(node, 1));
+            let arg_slot = slot(arg_port);
+            /*if arg_slot != 0 {
+              // If it's not connected to port 0 of a node, it can still be valid,
+              // if it's returning a nullary constructor (as in λx (x) or λa λb λc (b)).
+              // If it isn't connected to port 2 of the final lambda (CON) node, then the
+              // body must be an application of a constructor, so it must connect to port 0 of a CON node.
+              if arg_port != port(node, 2) {
+                break false; // Not connected to port 1 of either ERA or CON node
+              }
+            }*/
+            let arg_node = addr(arg_port);
+            let arg_kind = kind(inet, arg_node);
+            if arg_kind != ERA {
+              if only_non_era_arg.is_some() {
+                break false; // More than 1 arg is used
+              }
+              if arg_kind != CON {
+                // Not connected to CON node (application of constructor's port 0 or final lambda node's port 2)
+                break false;
+              }
+              // At this point we know that arg is connected to port 0 of a CON node
+              // Assuming the CON node represents application of constructor, port 2 is RET
+              only_non_era_arg = Some(arg_port);
+              // Subsequent nodes should be further applications of more args,
+              // until we reach port 2 (body) of the final lambda (CON) node.
+              // This is checked below this loop, when we know `final_lambda_node_body_port`
+            }
 
-    inet.reuse.push(fun);
+            final_lambda_node_body_port = port(node, 2);
+            next_port_0_of_con = enter(inet, final_lambda_node_body_port);
+            con_nodes_visited += 1;
+            if con_nodes_visited > cases {
+              break false;
+            }
+          } else if con_nodes_visited == cases {
+            break true;
+          } else {
+            break false;
+          }
+        };
+        match only_non_era_arg {
+          Some(mut ret_port) if found_matching_constructor_call => {
+            // Only valid if following ret_port through 0 or more CON nodes (entering through port 0, exiting through port 2) we reach port 2 (body) of the final lambda (CON) node.
+            let mut app_nodes_visited = 0;
+            let valid_constructor_call = loop {
+              if ret_port == final_lambda_node_body_port {
+                break true;
+              }
+              if slot(ret_port) != 0 {
+                // If it's not connected to port 0 of a node, it can still be valid,
+                // if it's returning a nullary constructor (as in λx (x) or λa λb λc (b)).
+                // If it isn't connected to port 2 of the final lambda (CON) node, then the
+                // body must be an application of a constructor, so it must connect to port 0 of a CON node.
+                // if ret_port != final_lambda_node_body_port {
+                break false; // Not connected to port 1 of either ERA or CON node
+                // }
+              }
+              ret_port = enter(inet, port(addr(ret_port), 2)); // Exit through RET port of APP node
 
-    let y = addr(enter(inet, host));
-    let kind_x = other_kind;
-    let kind_y = kind(inet, y);
-    (y, kind_y)
+              let max_constructor_args: usize = todo!(); // Infer from jump table lambdas
+
+              app_nodes_visited += 1;
+              if app_nodes_visited > max_constructor_args {
+                break false;
+              }
+            };
+          }
+          _ => {}
+        }
+        todo!()
+      } else {
+        None
+      }
+    } else {
+      None
+    };
+    if let Some(()) = fast_dispatch_call {
+      todo!()
+    } else {
+      let host = port(other, 0);
+      alloc_at(inet, &function_terms.0, host, function_book);
+
+      inet.reuse.push(fun);
+
+      let y = addr(enter(inet, host));
+      let kind_x = other_kind;
+      debug_assert_eq!(kind_x, CON);
+      let kind_y = kind(inet, y);
+      (y, kind_y)
+    }
   }
 
   let kind_x = kind(inet, x);

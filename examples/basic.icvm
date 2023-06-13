@@ -15,7 +15,7 @@ def double = λf λn (n (λp (S (S (f p)))) Z)
 
 // (Y double (S (S Z)))
 
-(pred (S Z))
+(pred (S (S Z)))
 
 // (Node (S (S (S Z))) Leaf)
 // (Node Z Z)
