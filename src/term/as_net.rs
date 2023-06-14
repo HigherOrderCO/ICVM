@@ -155,7 +155,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
         if enter(&inet, next) == next {
           link(inet, var, next);
         } else {
-          panic!("Variable used more than once: {}.", std::str::from_utf8(nam).unwrap());
+          panic!("Variable used more than once: {}", std::str::from_utf8(nam).unwrap());
         }
       }
       None => {

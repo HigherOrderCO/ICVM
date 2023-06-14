@@ -101,7 +101,7 @@ pub fn reduce(
   inet: &mut INet,
   function_book: &FunctionBook,
   root: Port,
-  skip: &dyn Fn(NodeKind, NodeKind) -> bool,
+  skip: impl Fn(NodeKind, NodeKind) -> bool,
 ) {
   let mut path = vec![];
   let mut prev = root;
@@ -117,8 +117,8 @@ pub fn reduce(
       let skipped = skip(kind(inet, addr(prev)), kind(inet, addr(next)));
       // If prev is a main port, reduce the active pair.
       if slot(prev) == 0 && !skipped {
-        inet.rewrite_count += 1;
         rewrite(inet, function_book, addr(prev), addr(next));
+        inet.rewrite_count += 1;
 
         if DEBUG.get().copied().unwrap_or_default() {
           let term = read_at(inet, ROOT, function_book);
@@ -127,8 +127,8 @@ pub fn reduce(
 
         prev = path.pop().unwrap();
         continue;
-      // Otherwise, return the axiom.
       } else {
+        // Otherwise, return the axiom.
         return;
       }
     }
@@ -166,16 +166,16 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
     other: NodeId,
     fun_kind: NodeKind,
     other_kind: NodeKind,
-  ) -> (u32, NodeKind) {
+  ) -> Option<(u32, NodeKind)> {
     let function_id = (fun_kind - FUN) as usize;
     let function_terms = &function_book.function_id_to_terms[function_id];
     let fast_dispatch_call = if let Some(jump_table) = &function_terms.1 {
       if other_kind == CON {
-        let cases = jump_table.len();
-        let ret = enter(inet, port(other, 2));
-        let arg = enter(inet, port(other, 1));
-        // TODO: Handle kind == FUN
-        let mut next_port_0_of_con = arg;
+        let case_count = jump_table.len();
+        let app_arg_port = port(other, 1);
+        let app_arg_port_target = enter(inet, app_arg_port);
+        let app_ret_port_target = enter(inet, port(other, 2));
+        let mut next_port_0_of_con = app_arg_port_target;
         let mut con_nodes_visited = 0;
         // Find the first non-ERA arg, but check that there are exactly as many lambda (CON) nodes as there
         // are cases in the jump table, and the others have ERA args.
@@ -186,10 +186,16 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
         let mut final_lambda_node_body_port = Port::MAX;
         let found_matching_constructor_call = loop {
           let node = addr(next_port_0_of_con);
-          if slot(next_port_0_of_con) == 0 && kind(inet, node) == CON {
-            let arg_port = enter(inet, port(node, 1));
-            let arg_slot = slot(arg_port);
-            /*if arg_slot != 0 {
+          // TODO: Handle the situation where the arg is an application of a FUN
+          // E.g. `(pred (S (S Z)))`
+          // The FUN application (at least the outermost) in the arg must be rewritten first,
+          // so that the `pred` call can benefit from fast dispatch!
+          let arg_slot = slot(next_port_0_of_con);
+          let arg_kind = kind(inet, node);
+          if arg_slot == 0 && arg_kind == CON {
+            let lambda_arg_port = enter(inet, port(node, 1));
+            /*let arg_slot = slot(arg_port);
+            if arg_slot != 0 {
               // If it's not connected to port 0 of a node, it can still be valid,
               // if it's returning a nullary constructor (as in λx (x) or λa λb λc (b)).
               // If it isn't connected to port 2 of the final lambda (CON) node, then the
@@ -198,19 +204,19 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
                 break false; // Not connected to port 1 of either ERA or CON node
               }
             }*/
-            let arg_node = addr(arg_port);
-            let arg_kind = kind(inet, arg_node);
-            if arg_kind != ERA {
+            let lambda_arg_node = addr(lambda_arg_port);
+            let lambda_arg_kind = kind(inet, lambda_arg_node);
+            if lambda_arg_kind != ERA {
               if only_non_era_arg.is_some() {
                 break false; // More than 1 arg is used
               }
-              if arg_kind != CON {
+              if lambda_arg_kind != CON {
                 // Not connected to CON node (application of constructor's port 0 or final lambda node's port 2)
                 break false;
               }
               // At this point we know that arg is connected to port 0 of a CON node
               // Assuming the CON node represents application of constructor, port 2 is RET
-              only_non_era_arg = Some(arg_port);
+              only_non_era_arg = Some((lambda_arg_port, con_nodes_visited));
               // Subsequent nodes should be further applications of more args,
               // until we reach port 2 (body) of the final lambda (CON) node.
               // This is checked below this loop, when we know `final_lambda_node_body_port`
@@ -219,19 +225,25 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
             final_lambda_node_body_port = port(node, 2);
             next_port_0_of_con = enter(inet, final_lambda_node_body_port);
             con_nodes_visited += 1;
-            if con_nodes_visited > cases {
+            if con_nodes_visited > case_count {
               break false;
             }
-          } else if con_nodes_visited == cases {
+          } else if con_nodes_visited == case_count {
             break true;
+          } else if arg_slot == 2 && arg_kind == CON {
+            // Could be application of FUN or lambda (CON) node
+            todo!();
           } else {
             break false;
           }
         };
         match only_non_era_arg {
-          Some(mut ret_port) if found_matching_constructor_call => {
-            // Only valid if following ret_port through 0 or more CON nodes (entering through port 0, exiting through port 2) we reach port 2 (body) of the final lambda (CON) node.
+          Some((arg_port, case_idx)) if found_matching_constructor_call => {
+            let max_constructor_args = jump_table[case_idx].1;
+            // Only valid if following ret_port through 0 or more CON nodes (entering through port 0,
+            // exiting through port 2) we reach port 2 (body) of the final lambda (CON) node.
             let mut app_nodes_visited = 0;
+            let mut ret_port = arg_port;
             let valid_constructor_call = loop {
               if ret_port == final_lambda_node_body_port {
                 break true;
@@ -247,17 +259,47 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
               }
               ret_port = enter(inet, port(addr(ret_port), 2)); // Exit through RET port of APP node
 
-              let max_constructor_args: usize = todo!(); // Infer from jump table lambdas
-
               app_nodes_visited += 1;
               if app_nodes_visited > max_constructor_args {
                 break false;
               }
             };
+            if valid_constructor_call {
+              let arg_ret_port = enter(inet, final_lambda_node_body_port);
+              // Perform fast dispatch:
+              // - Remove APP and FUN node, and the application arg's CON nodes (`case_count`)
+              // - Insert handler lambda term from jump_table[case_idx], link to `arg_port` (which
+              //   represents the only non-ERA arg of the nested lambdas in the arg to the FUN application)
+              //   so that there are `case_count` CON node pairs facing each other
+              //   (`case_count` future interactions will then map the constructor args to handler args)
+              // - Link `arg_ret_port` to `other`'s RET port target (`app_ret_port_target`)
+              let constructor_handler = &jump_table[case_idx].0;
+              alloc_at(inet, constructor_handler, arg_port, function_book);
+              link(inet, arg_ret_port, app_ret_port_target);
+
+              inet.reuse.push(fun);
+              inet.reuse.push(other);
+
+              // Remove the `case_count` lambda (CON) nodes
+              let mut next = final_lambda_node_body_port;
+              let mut con_nodes_removed = 0;
+              while {
+                let node = addr(next);
+                inet.reuse.push(node);
+                con_nodes_removed += 1;
+                debug_assert_eq!(kind(inet, node), CON);
+                debug_assert_eq!(slot(next), 2);
+                next = enter(inet, port(node, 0));
+                next != app_arg_port
+              } {}
+              debug_assert_eq!(con_nodes_removed, case_count);
+              Some(())
+            } else {
+              None
+            }
           }
-          _ => {}
+          _ => None,
         }
-        todo!()
       } else {
         None
       }
@@ -265,7 +307,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
       None
     };
     if let Some(()) = fast_dispatch_call {
-      todo!()
+      None
     } else {
       let host = port(other, 0);
       alloc_at(inet, &function_terms.0, host, function_book);
@@ -276,49 +318,51 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
       let kind_x = other_kind;
       debug_assert_eq!(kind_x, CON);
       let kind_y = kind(inet, y);
-      (y, kind_y)
+      Some((y, kind_y))
     }
   }
 
   let kind_x = kind(inet, x);
   let kind_y = kind(inet, y);
 
-  // When one of the nodes is a FUN, replace it with the function net
-  let ((x, kind_x), (y, kind_y)) = if kind_x & TAG_MASK == FUN {
-    ((y, kind_y), insert_function(inet, function_book, x, y, kind_x, kind_y))
-  } else if kind_y & TAG_MASK == FUN {
-    ((x, kind_x), insert_function(inet, function_book, y, x, kind_y, kind_x))
-  } else {
-    ((x, kind_x), (y, kind_y))
-  };
+  let _: Option<()> = try {
+    // When one of the nodes is a FUN, replace it with the function net
+    let ((x, kind_x), (y, kind_y)) = if kind_x & TAG_MASK == FUN {
+      ((y, kind_y), insert_function(inet, function_book, x, y, kind_x, kind_y)?)
+    } else if kind_y & TAG_MASK == FUN {
+      ((x, kind_x), insert_function(inet, function_book, y, x, kind_y, kind_x)?)
+    } else {
+      ((x, kind_x), (y, kind_y))
+    };
 
-  if kind_x == kind_y {
-    let p0 = enter(inet, port(x, 1));
-    let p1 = enter(inet, port(y, 1));
-    link(inet, p0, p1);
-    let p0 = enter(inet, port(x, 2));
-    let p1 = enter(inet, port(y, 2));
-    link(inet, p0, p1);
-    inet.reuse.push(x);
-    inet.reuse.push(y);
-  } else {
-    let t = kind(inet, x);
-    let a = new_node(inet, t);
-    let t = kind(inet, y);
-    let b = new_node(inet, t);
-    let t = enter(inet, port(x, 1));
-    link(inet, port(b, 0), t);
-    let t = enter(inet, port(x, 2));
-    link(inet, port(y, 0), t);
-    let t = enter(inet, port(y, 1));
-    link(inet, port(a, 0), t);
-    let t = enter(inet, port(y, 2));
-    link(inet, port(x, 0), t);
-    link(inet, port(a, 1), port(b, 1));
-    link(inet, port(a, 2), port(y, 1));
-    link(inet, port(x, 1), port(b, 2));
-    link(inet, port(x, 2), port(y, 2));
-  }
+    if kind_x == kind_y {
+      let p0 = enter(inet, port(x, 1));
+      let p1 = enter(inet, port(y, 1));
+      link(inet, p0, p1);
+      let p0 = enter(inet, port(x, 2));
+      let p1 = enter(inet, port(y, 2));
+      link(inet, p0, p1);
+      inet.reuse.push(x);
+      inet.reuse.push(y);
+    } else {
+      let t = kind(inet, x);
+      let a = new_node(inet, t);
+      let t = kind(inet, y);
+      let b = new_node(inet, t);
+      let t = enter(inet, port(x, 1));
+      link(inet, port(b, 0), t);
+      let t = enter(inet, port(x, 2));
+      link(inet, port(y, 0), t);
+      let t = enter(inet, port(y, 1));
+      link(inet, port(a, 0), t);
+      let t = enter(inet, port(y, 2));
+      link(inet, port(x, 0), t);
+      link(inet, port(a, 1), port(b, 1));
+      link(inet, port(a, 2), port(y, 1));
+      link(inet, port(x, 1), port(b, 2));
+      link(inet, port(x, 2), port(y, 2));
+    }
+  };
 }
 
 // Composes two fixed points:
