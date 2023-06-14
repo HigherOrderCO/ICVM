@@ -3,6 +3,12 @@
 
 #![allow(dead_code)]
 
+use crate::{
+  term::{alloc_at, read_at, FunctionBook},
+  DEBUG, FAST_DISPATCH,
+};
+use std::collections::{BTreeMap, VecDeque};
+
 #[derive(Clone, Debug)]
 pub struct INet {
   pub nodes: Vec<u32>,
@@ -169,7 +175,9 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
   ) -> Option<(u32, NodeKind)> {
     let function_id = (fun_kind - FUN) as usize;
     let function_terms = &function_book.function_id_to_terms[function_id];
-    let fast_dispatch_call = if let Some(jump_table) = &function_terms.1 {
+    let fast_dispatch_call = if !FAST_DISPATCH.get().copied().unwrap_or_default() {
+      None
+    } else if let Some(jump_table) = &function_terms.1 {
       if other_kind == CON {
         let case_count = jump_table.len();
         let app_arg_port = port(other, 1);
@@ -437,12 +445,6 @@ fn fixpose(inet: &mut INet, a: Port, b: Port) {
 // > eq ak[a0 a1 *a2] {[ak]:ap,..am} b bm = eq a1 {[ak]:(2,ap),..am} b bm
 //
 // The rules above that match on 'a' are repeated for 'b'.
-
-use crate::{
-  term::{alloc_at, read_at, FunctionBook},
-  DEBUG,
-};
-use std::collections::{BTreeMap, VecDeque};
 
 pub struct Cursor<'a> {
   root: Port,

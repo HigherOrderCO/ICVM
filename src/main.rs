@@ -13,6 +13,10 @@ struct Args {
   #[arg(short, long)]
   debug: bool,
 
+  /// Use fast dispatch for scott-encoded case matching when possible
+  #[arg(short, long)]
+  fast_dispatch: bool,
+
   /// File containing the source code of the program
   file_path: PathBuf,
 }
@@ -20,6 +24,7 @@ struct Args {
 fn main() {
   let args = Args::parse();
   DEBUG.set(args.debug).unwrap();
+  FAST_DISPATCH.set(args.fast_dispatch).unwrap();
 
   let code = fs::read_to_string(&args.file_path).expect("Unable to read the file");
 
