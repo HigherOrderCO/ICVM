@@ -1,6 +1,5 @@
 use crate::{inet::*, term::*};
 use itertools::Itertools;
-use std::collections::HashMap;
 
 #[test]
 fn test_equal() {

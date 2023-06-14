@@ -160,7 +160,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
       }
       None => {
         let name = std::str::from_utf8(nam).unwrap();
-        if let Some(term) = function_book.function_name_to_term.get(name) {
+        if let Some(_term) = function_book.function_name_to_term.get(name) {
           let function_id = function_book.function_name_to_id[name];
           // println!("ID {name}: {function_id}");
           let node = new_node(inet, FUN + function_id);
@@ -234,8 +234,7 @@ pub fn read_at(net: &INet, host: Port, function_book: &FunctionBook) -> Term {
           } else {
             None
           };
-          let mut lam = Lam { nam, typ, bod: Box::new(bod) };
-          lam
+          Lam { nam, typ, bod: Box::new(bod) }
         }
         // If we're visiting a port 1, then it is a variable.
         1 => {

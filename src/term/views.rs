@@ -14,7 +14,7 @@ pub fn lambda_term_to_inet(term: &Term) -> INet {
         link(inet, port(app, 1), arg);
         port(app, 2)
       }
-      &Lam { ref nam, ref typ, ref bod } => {
+      &Lam { ref nam, typ: _, ref bod } => {
         // TODO: handle typ
         let fun = new_node(inet, CON);
         let era = new_node(inet, ERA);

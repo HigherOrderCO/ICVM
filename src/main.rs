@@ -1,16 +1,6 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(unused_parens)]
-#![allow(unreachable_code)]
-
 use clap::Parser;
 use ic::*;
-use std::{
-  fs::{self, File},
-  io,
-  io::prelude::*,
-  path::PathBuf,
-};
+use std::{fs, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

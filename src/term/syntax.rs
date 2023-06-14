@@ -173,7 +173,7 @@ pub fn parse_term<'a>(
         if ctx[i].0 == nam {
           match ctx[i].1 {
             Some(ref term) => {
-              let mut name = nam.clone().to_vec();
+              let name = nam.clone().to_vec();
               val = Some(copy(&name, *idx, term));
               *idx += 1;
               break;
@@ -203,7 +203,7 @@ pub fn build_jump_table(
   function_name_to_term: &HashMap<String, Term>,
 ) -> Option<Vec<(Term, usize)>> {
   match &function {
-    Lam { nam, typ, bod } => {
+    Lam { nam, typ: _, bod } => {
       let mut ctx = vec![nam];
 
       let mut next_inner_app = &**bod;

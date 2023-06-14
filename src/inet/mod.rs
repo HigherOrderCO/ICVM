@@ -141,9 +141,8 @@ pub fn reduce(
 // Reduces the net to normal form.
 pub fn normal(inet: &mut INet, function_book: &FunctionBook, root: Port) {
   let mut warp = vec![root];
-  let mut tick = 0;
   while let Some(prev) = warp.pop() {
-    reduce(inet, function_book, prev, &|ak, bk| false);
+    reduce(inet, function_book, prev, &|_ak, _bk| false);
     let next = enter(inet, prev);
     if slot(next) == 0 {
       warp.push(port(addr(next), 1));
