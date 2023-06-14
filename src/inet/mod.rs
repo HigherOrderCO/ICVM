@@ -5,7 +5,7 @@
 
 use crate::{
   term::{alloc_at, read_at, FunctionBook},
-  DEBUG, FAST_DISPATCH,
+  DEBUG,
 };
 use std::collections::{BTreeMap, VecDeque};
 
@@ -108,6 +108,7 @@ pub fn reduce(
   function_book: &FunctionBook,
   root: Port,
   skip: impl Fn(NodeKind, NodeKind) -> bool,
+  fast_dispatch: bool,
 ) {
   let mut path = vec![];
   let mut prev = root;
@@ -123,7 +124,7 @@ pub fn reduce(
       let skipped = skip(kind(inet, addr(prev)), kind(inet, addr(next)));
       // If prev is a main port, reduce the active pair.
       if slot(prev) == 0 && !skipped {
-        rewrite(inet, function_book, addr(prev), addr(next));
+        rewrite(inet, function_book, addr(prev), addr(next), fast_dispatch);
         inet.rewrite_count += 1;
 
         if DEBUG.get().copied().unwrap_or_default() {
@@ -145,10 +146,10 @@ pub fn reduce(
 }
 
 // Reduces the net to normal form.
-pub fn normal(inet: &mut INet, function_book: &FunctionBook, root: Port) {
+pub fn normal(inet: &mut INet, function_book: &FunctionBook, root: Port, fast_dispatch: bool) {
   let mut warp = vec![root];
   while let Some(prev) = warp.pop() {
-    reduce(inet, function_book, prev, &|_ak, _bk| false);
+    reduce(inet, function_book, prev, &|_ak, _bk| false, fast_dispatch);
     let next = enter(inet, prev);
     if slot(next) == 0 {
       warp.push(port(addr(next), 1));
@@ -163,7 +164,7 @@ pub fn normal(inet: &mut INet, function_book: &FunctionBook, root: Port) {
 }
 
 /// Rewrites an active pair
-pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: NodeId) {
+pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: NodeId, fast_dispatch: bool) {
   /// Insert the function body in place of the FUN node
   fn insert_function(
     inet: &mut INet,
@@ -172,10 +173,11 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
     other: NodeId,
     fun_kind: NodeKind,
     other_kind: NodeKind,
+    fast_dispatch: bool,
   ) -> Option<(u32, NodeKind)> {
     let function_id = (fun_kind - FUN) as usize;
     let function_terms = &function_book.function_id_to_terms[function_id];
-    let fast_dispatch_call = if !FAST_DISPATCH.get().copied().unwrap_or_default() {
+    let fast_dispatch_call = if !fast_dispatch {
       None
     } else if let Some(jump_table) = &function_terms.1 {
       if other_kind == CON {
@@ -336,9 +338,9 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
   let _: Option<()> = try {
     // When one of the nodes is a FUN, replace it with the function net
     let ((x, kind_x), (y, kind_y)) = if kind_x & TAG_MASK == FUN {
-      ((y, kind_y), insert_function(inet, function_book, x, y, kind_x, kind_y)?)
+      ((y, kind_y), insert_function(inet, function_book, x, y, kind_x, kind_y, fast_dispatch)?)
     } else if kind_y & TAG_MASK == FUN {
-      ((x, kind_x), insert_function(inet, function_book, y, x, kind_y, kind_x)?)
+      ((x, kind_x), insert_function(inet, function_book, y, x, kind_y, kind_x, fast_dispatch)?)
     } else {
       ((x, kind_x), (y, kind_y))
     };
@@ -501,7 +503,8 @@ pub fn compare(inet: &mut INet, function_book: &FunctionBook, a: &mut Cursor, b:
 
   // Moves one of the cursors forward and compares
   fn advance(inet: &mut INet, function_book: &FunctionBook, a: &mut Cursor, b: &mut Cursor) -> Option<bool> {
-    reduce(inet, function_book, a.prev, &|ak, bk| ak == FIX || bk == FIX);
+    let fast_dispatch = false; // TODO: Use setting from CLI arg?
+    reduce(inet, function_book, a.prev, &|ak, bk| ak == FIX || bk == FIX, fast_dispatch);
 
     let a_next = enter(inet, a.prev);
     let a_kind = kind(inet, addr(a_next));
