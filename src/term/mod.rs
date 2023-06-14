@@ -10,7 +10,7 @@ use crate::inet::*;
 use std::{self, collections::*, time::Instant};
 
 // Terms of the Interaction Calculus.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Term {
   // Abstractions
   Lam { nam: Vec<u8>, typ: Option<Box<Term>>, bod: Box<Term> },

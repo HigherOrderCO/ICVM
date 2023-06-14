@@ -1,4 +1,7 @@
-use crate::{inet::*, term::*};
+use crate::{
+  inet::*,
+  term::{self, *},
+};
 use itertools::Itertools;
 
 #[test]
@@ -134,4 +137,24 @@ fn test_build_jump_table() {
 
   // Also not suitable
   expect_jump_table("λn (n)", None);
+}
+
+#[test]
+fn test_fast_dispatch() {
+  let programs = &["
+    def Z = λs λz (z)
+    // def S = λn λs λz (s n)
+    def pred = λn (n (λp p) Z)
+    (pred λs λz (s λs2 λz2 (s2 λs3 λz3 (z3)))) // λa λ* (a λ* λb b) == (S Z)
+  "];
+  for code in programs {
+    let (term, function_book) = term::from_string(code.as_bytes());
+    let (norm, reduction_count, elapsed_s) = term::normalize_with_stats(&term, &function_book, false);
+    let (fast_dispatch_norm, fast_dispatch_reduction_count, fast_dispatch_elapsed_s) =
+      term::normalize_with_stats(&term, &function_book, true);
+    assert_eq!(norm.to_string(), "λa λ* (a λ* λb b)"); // (S Z)
+    assert_eq!(norm, fast_dispatch_norm);
+    assert!(fast_dispatch_reduction_count < reduction_count);
+    assert!(fast_dispatch_elapsed_s < elapsed_s);
+  }
 }
