@@ -198,15 +198,56 @@ pub fn parse_term<'a>(
 /// E.g. λn (n (λp (S (S (F p)))) Z)
 /// case S => λp (S (S (F p)))
 /// case Z => Z
-pub fn build_jump_table(term: &Term) -> Option<Vec<Term>> {
-  match &term {
+pub fn build_jump_table(
+  function: &Term,
+  function_name_to_term: &HashMap<String, Term>,
+) -> Option<Vec<(Term, usize)>> {
+  match &function {
     Lam { nam, typ, bod } => {
       let mut next_inner_app = &**bod;
       let mut jump_table = vec![];
       while !matches!(next_inner_app, Var { nam: n } if n == nam) {
         match next_inner_app {
           App { fun, arg } => {
-            jump_table.push((**arg).clone());
+            // For handling the constructor cases, each arg must be a lambda (or reference to a
+            // defined function). We determine how many nested lambdas each arg consists of,
+            // this is >= the number of args of each constructor. E.g. in
+            // def Z = λs λz (z)
+            // def S = λn λs λz (s n)
+            // λn (n (λp (S (S (F p)))) Z)
+            // `λp (S (S (F p)))` has 1 λ, Z has 2 (>= 0, the number of args of the Z constructor)
+            // So this `nested_lambda_count` gives us an upper bound for how many CON nodes we must
+            // walk through, when checking if fast dispatch is possible when applying `function`
+            // to an arg. Then we can exit the arg net walk early after `nested_lambda_count` CON
+            // nodes, as we know that the arg doesn't have the net structure for fast dispatch.
+            let mut nested_lambda_count = 0;
+            let mut next_inner_body = &**arg;
+            loop {
+              println!("{}", next_inner_body);
+              next_inner_body = match next_inner_body {
+                Lam { bod, .. } => &**bod,
+                Var { nam } => match function_name_to_term.get(std::str::from_utf8(nam).unwrap()) {
+                  Some(Lam { bod, .. }) => &**bod,
+                  Some(_) => unreachable!(),
+                  None => {
+                    // E.g. in
+                    // def Z = λs λz (z)
+                    // def S = λn λs λz (s n)
+                    // λn (n (λp (S (S (F p)))) Z)
+                    // Z gets resolved, and then we end up with `Var { nam: "z" }`, so we stop here
+                    break;
+                  }
+                },
+                _ => break,
+              };
+              nested_lambda_count += 1;
+            }
+            // Each arg must be a case handler (lambda)
+            if nested_lambda_count == 0 {
+              return None;
+            }
+
+            jump_table.push(((**arg).clone(), nested_lambda_count));
             next_inner_app = fun;
           }
           _ => return None,
@@ -224,7 +265,7 @@ pub type FunctionId = u32;
 
 pub struct FunctionBook {
   pub function_name_to_term: HashMap<FunctionName, Term>,
-  pub function_id_to_terms: Vec<(Term, Option<Vec<Term>>)>,
+  pub function_id_to_terms: Vec<(Term, Option<Vec<(Term, usize)>>)>,
   pub function_id_to_name: Vec<FunctionName>,
   pub function_name_to_id: HashMap<FunctionName, FunctionId>,
 }
@@ -234,7 +275,7 @@ impl FunctionBook {
     let function_name_to_terms = function_name_to_term
       .iter()
       .map(|(name, term)| {
-        let jump_table = build_jump_table(&term);
+        let jump_table = build_jump_table(&term, &function_name_to_term);
         (name, (term, jump_table))
       })
       .collect::<HashMap<_, _>>();

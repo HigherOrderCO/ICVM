@@ -96,20 +96,39 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
 
 #[test]
 fn test_build_jump_table() {
-  fn expect_jump_table(code: &str, expected_jump_table: Option<Vec<String>>) {
+  fn expect_jump_table(code: &str, expected_jump_table: Option<Vec<(String, usize)>>) {
     let (term, function_book) = from_string(code.as_bytes());
-    let jump_table =
-      build_jump_table(&term).map(|jt| jt.into_iter().map(|term| term.to_string()).collect_vec());
+    let jump_table = build_jump_table(&term, &function_book.function_name_to_term).map(|jt| {
+      jt.into_iter().map(|(term, nested_lambda_count)| (term.to_string(), nested_lambda_count)).collect_vec()
+    });
     assert_eq!(jump_table, expected_jump_table);
   }
 
   // case S => λp (S (S (F p)))
   // case Z => Z
-  expect_jump_table("λn (n (λp (S (S (F p)))) Z)", Some(vec!["λp (S (S (F p)))".into(), "Z".into()]));
+  expect_jump_table(
+    "
+    def Z = λs λz (z)
+    def S = λn λs λz (s n)
+    λn (n (λp (S (S (F p)))) Z)",
+    Some(vec![("λp (S (S (F p)))".into(), 1), ("Z".into(), 2)]),
+  );
+
+  expect_jump_table(
+    "λn (n (λp (S (S (F p)))) λs λz (z))",
+    Some(vec![("λp (S (S (F p)))".into(), 1), ("λs λz z".into(), 2)]),
+  );
+
+  expect_jump_table("λn (n (λp (S (S (F p)))) Z)", None);
 
   // case S => λp (p)
   // case Z => Z
-  expect_jump_table("λn (n (λp(p)) Z)", Some(vec!["λp p".into(), "Z".into()]));
+  expect_jump_table(
+    "
+    def Z = λs λz (z)
+    λn (n (λp(p)) Z)",
+    Some(vec![("λp p".into(), 1), ("Z".into(), 2)]),
+  );
 
   // This calls `x`, not `n`, thus it's not suitable for fast dispatch
   expect_jump_table("λn (x (λp (S (S (F p)))) Z)", None);
