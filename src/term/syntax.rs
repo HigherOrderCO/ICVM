@@ -204,6 +204,8 @@ pub fn build_jump_table(
 ) -> Option<Vec<(Term, usize)>> {
   match &function {
     Lam { nam, typ, bod } => {
+      let mut ctx = vec![nam];
+
       let mut next_inner_app = &**bod;
       let mut jump_table = vec![];
       while !matches!(next_inner_app, Var { nam: n } if n == nam) {
@@ -223,21 +225,36 @@ pub fn build_jump_table(
             let mut nested_lambda_count = 0;
             let mut next_inner_body = &**arg;
             loop {
-              println!("{}", next_inner_body);
               next_inner_body = match next_inner_body {
-                Lam { bod, .. } => &**bod,
-                Var { nam } => match function_name_to_term.get(std::str::from_utf8(nam).unwrap()) {
-                  Some(Lam { bod, .. }) => &**bod,
-                  Some(_) => unreachable!(),
-                  None => {
+                Lam { nam, typ: _, bod } => {
+                  ctx.push(nam);
+                  &**bod
+                }
+                Var { nam } => {
+                  if ctx.contains(&nam) {
+                    // Bound variable
                     // E.g. in
                     // def Z = λs λz (z)
                     // def S = λn λs λz (s n)
                     // λn (n (λp (S (S (F p)))) Z)
-                    // Z gets resolved, and then we end up with `Var { nam: "z" }`, so we stop here
+                    // Z gets resolved, and then we end up with `Var { nam: "z" }`
+                    // which is in `ctx`, so we stop here
                     break;
+                  } else {
+                    let nam = std::str::from_utf8(nam).unwrap();
+                    match function_name_to_term.get(nam) {
+                      Some(Lam { nam, typ: _, bod }) => {
+                        ctx.push(nam);
+                        &**bod
+                      }
+                      Some(_) => unreachable!(), // Function table contains only lambda terms
+                      None => {
+                        // Free variable, not in `ctx`
+                        break;
+                      }
+                    }
                   }
-                },
+                }
                 _ => break,
               };
               nested_lambda_count += 1;
