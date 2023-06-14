@@ -11,6 +11,7 @@ def pred = λn (n (λp p) Z)
 // def cond = λc λx λy (c x y)
 // def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λx dup #xx x1 x2 = x; (f2 (x1 x2))))
 def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λy dup #yy y1 y2 = y; (f2 (y1 y2))))
+// double can't benefit from fast dispatch because of λf
 def double = λf λn (n (λp (S (S (f p)))) Z)
 
 // (Y double (S (S Z)))
@@ -18,6 +19,7 @@ def double = λf λn (n (λp (S (S (f p)))) Z)
 // (pred (S (S Z)))
 // (pred λs λz (s λs λz (s λs λz (z)))) // 'Variable used more than once: s'
 (pred λs λz (s λs2 λz2 (s2 λs3 λz3 (z3)))) // λa λ* (a λ* λb b) == (S Z)
+// (pred (pred λs λz (s λs2 λz2 (s2 λs3 λz3 (z3)))))
 
 // (Node (S (S (S Z))) Leaf)
 // (Node Z Z)

@@ -11,6 +11,8 @@
 // <name> ::= <alphanumeric_name>
 // <tag>  ::= <positive_integer>
 
+use std::assert_matches::debug_assert_matches;
+
 use itertools::Itertools;
 
 use super::*;
@@ -70,6 +72,7 @@ pub fn parse_term<'a>(
       let (code, nam) = parse_name(&code[4 ..]);
       let code = parse_text(code, b"=").unwrap();
       let (code, val) = parse_term(code, ctx, idx, functions);
+      debug_assert_matches!(val, Lam { .. }, "Definitions must be lambda terms");
       let code = if code[0] == b';' { &code[1 ..] } else { code };
       // extend(nam, Some(val.clone()), ctx);
       let name = String::from_utf8_lossy(nam).to_string();
@@ -208,6 +211,8 @@ pub fn build_jump_table(
 
       let mut next_inner_app = &**bod;
       let mut jump_table = vec![];
+      // A case-matching function has structure λx (x arg1 arg2 ... argN)
+      // N is the number of constructor variants: There's one handler for each variant
       while !matches!(next_inner_app, Var { nam: n } if n == nam) {
         match next_inner_app {
           App { fun, arg } => {
@@ -247,10 +252,14 @@ pub fn build_jump_table(
                         ctx.push(nam);
                         &**bod
                       }
-                      Some(_) => unreachable!(), // Function table contains only lambda terms
+                      Some(_) => {
+                        // Definitions must be lambda terms => Function table contains only lambda terms
+                        unreachable!()
+                      }
                       None => {
                         // Free variable, not in `ctx`
-                        break;
+                        // break;
+                        unreachable!() // Free variables aren't allowed currently
                       }
                     }
                   }
@@ -271,6 +280,9 @@ pub fn build_jump_table(
         }
       }
       jump_table.reverse(); // Args were pushed in reverse order (outermost application first)
+      // If `jump_table` is empty, e.g. `λx (x)`, it's not a case-matching function.
+      // If `jump_table` only has one entry, e.g. `λx (x y)`, no allocations would be saved by using a jump table
+      // (jump_table.len() > 1).then_some(jump_table)
       (!jump_table.is_empty()).then_some(jump_table)
     }
     _ => None,

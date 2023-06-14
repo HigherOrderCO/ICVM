@@ -1,4 +1,5 @@
 #![feature(try_blocks)]
+#![feature(assert_matches)]
 
 pub mod inet;
 pub mod term;

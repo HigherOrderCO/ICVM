@@ -1,6 +1,7 @@
 use crate::{
   inet::*,
   term::{self, *},
+  DEBUG,
 };
 use itertools::Itertools;
 
@@ -140,7 +141,7 @@ fn test_build_jump_table() {
 }
 
 #[test]
-fn test_fast_dispatch() {
+fn fast_dispatch_is_faster_for_scott_constructors() {
   let programs = &["
     def Z = λs λz (z)
     // def S = λn λs λz (s n)
@@ -156,5 +157,28 @@ fn test_fast_dispatch() {
     assert_eq!(norm, fast_dispatch_norm);
     assert!(fast_dispatch_reduction_count < reduction_count);
     assert!(fast_dispatch_elapsed_s < elapsed_s);
+  }
+}
+
+#[ignore]
+#[test]
+fn fast_dispatch_isnt_faster_with_1_constructor_variant() {
+  DEBUG.set(true).unwrap();
+  let programs = &["
+    // def Z = λz (z)
+    def X = λx (x)
+    // def handle_z = λz (a)
+    // def foo = λn (n handle_z)
+    def foo = λn (n λz (X))
+    (foo λz (z)) // == λ* X
+  "];
+  for code in programs {
+    let (term, function_book) = term::from_string(code.as_bytes());
+    let (norm, reduction_count, _elapsed_s) = term::normalize_with_stats(&term, &function_book, false);
+    let (fast_dispatch_norm, fast_dispatch_reduction_count, _elapsed_s) =
+      term::normalize_with_stats(&term, &function_book, true);
+    assert_eq!(norm.to_string(), "λ* X");
+    assert_eq!(norm, fast_dispatch_norm);
+    assert_eq!(fast_dispatch_reduction_count, reduction_count);
   }
 }
