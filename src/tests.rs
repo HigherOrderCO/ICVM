@@ -102,7 +102,9 @@ fn test_build_jump_table() {
   fn expect_jump_table(code: &str, expected_jump_table: Option<Vec<(String, usize)>>) {
     let (term, function_book) = from_string(code.as_bytes());
     let jump_table = build_jump_table(&term, &function_book.function_name_to_term).map(|jt| {
-      jt.into_iter().map(|(term, nested_lambda_count)| (term.to_string(), nested_lambda_count)).collect_vec()
+      jt.into_iter()
+        .map(|jte| (jte.variant_handler_term.to_string(), jte.variant_handler_arg_count))
+        .collect_vec()
     });
     assert_eq!(jump_table, expected_jump_table);
   }
