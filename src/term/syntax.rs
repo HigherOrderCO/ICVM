@@ -315,26 +315,24 @@ pub struct FunctionBook {
 
 impl FunctionBook {
   fn new(function_name_to_term: HashMap<String, Term>) -> Self {
-    let function_name_to_terms = function_name_to_term
+    let (function_name_to_id, function_id_to_name_and_term): (HashMap<_, _>, Vec<_>) = function_name_to_term
       .iter()
-      .map(|(name, term)| (name, (term, build_jump_table(&term, &function_name_to_term))))
-      .collect::<HashMap<_, _>>();
-
-    let function_id_to_data = function_name_to_terms
-      .into_iter()
       .sorted_by_key(|&(name, _)| name)
+      .enumerate()
+      .map(|(id, (name, term))| ((name.clone(), id as FunctionId), (name, term)))
+      .unzip();
+
+    let function_id_to_data = function_id_to_name_and_term
+      .iter()
+      .map(|(name, term)| {
+        (name, (term, build_jump_table(&term, &function_name_to_term /* , &function_name_to_id */)))
+      })
       .map(|(name, (term, jump_table))| FunctionData {
-        name: name.clone(),
-        term: term.clone(),
+        name: (*name).clone(),
+        term: (*term).clone(),
         jump_table: jump_table.clone(),
       })
       .collect_vec();
-
-    let function_name_to_id = function_id_to_data
-      .iter()
-      .enumerate()
-      .map(|(i, data)| (data.name.to_owned(), i as FunctionId))
-      .collect::<HashMap<FunctionName, FunctionId>>();
 
     Self { function_name_to_term, function_name_to_id, function_id_to_data }
   }
