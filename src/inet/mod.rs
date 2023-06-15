@@ -237,7 +237,23 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
             break true;
           } else if arg_slot == 2 && arg_kind == CON {
             // Could be application of FUN or lambda (CON) node
-            todo!();
+            let target_port = enter(inet, port(node, 0));
+            if slot(target_port) != 0 {
+              // Can't be application if not connected to port 0 of FUN or lambda (CON) node
+              break false;
+            }
+            let target_node = addr(target_port);
+            let target_node_kind = kind(inet, target_node);
+            match target_node_kind & TAG_MASK {
+              CON => todo!(),
+              FUN => {
+                let function_id = (target_node_kind - FUN) as usize;
+                let function_net = &function_book.function_id_to_data[function_id].net;
+
+                todo!()
+              }
+              _ => break false,
+            }
           } else {
             break false;
           }

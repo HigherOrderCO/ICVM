@@ -270,14 +270,13 @@ pub fn build_jump_table(
               return None;
             }
 
-            let variant_handler_term = (**arg).clone();
             jump_table.push(JumpTableEntry {
-              net: {
+              /* net: {
                 let mut net = new_inet();
                 alloc_at(&mut net, &variant_handler_term, ROOT, function_name_to_id);
                 net
-              },
-              variant_handler_term,
+              }, */
+              variant_handler_term: (**arg).clone(),
               variant_handler_arg_count: nested_lambda_count,
             });
             next_inner_app = fun;
@@ -300,9 +299,8 @@ pub type FunctionId = u32;
 
 #[derive(Clone, Debug)]
 pub struct JumpTableEntry {
-  /// The inet for this variant_handler_term
-  pub net: INet,
-
+  // /// The inet for this variant_handler_term
+  // pub net: INet,
   pub variant_handler_term: Term,
 
   /// The number of nested lambdas (constructor variant fields)
@@ -314,6 +312,7 @@ pub type JumpTable = Vec<JumpTableEntry>;
 pub struct FunctionData {
   pub name: FunctionName,
   pub term: Term,
+  pub net: INet,
   pub jump_table: Option<JumpTable>,
 }
 
@@ -340,6 +339,11 @@ impl FunctionBook {
       .map(|(name, (term, jump_table))| FunctionData {
         name: (*name).clone(),
         term: (*term).clone(),
+        net: {
+          let mut net = new_inet();
+          alloc_at(&mut net, term, ROOT, &function_name_to_id);
+          net
+        },
         jump_table: jump_table.clone(),
       })
       .collect_vec();
