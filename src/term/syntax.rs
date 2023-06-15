@@ -197,7 +197,11 @@ pub fn parse_term<'a>(
 /// E.g. λn (n (λp (S (S (F p)))) Z)
 /// case S => λp (S (S (F p)))
 /// case Z => Z
-pub fn build_jump_table(function: &Term, function_name_to_term: &HashMap<String, Term>) -> Option<JumpTable> {
+pub fn build_jump_table(
+  function: &Term,
+  function_name_to_term: &HashMap<FunctionName, Term>,
+  function_name_to_id: &HashMap<FunctionName, FunctionId>,
+) -> Option<JumpTable> {
   match &function {
     Lam { nam, typ: _, bod } => {
       let mut ctx = vec![nam];
@@ -266,14 +270,15 @@ pub fn build_jump_table(function: &Term, function_name_to_term: &HashMap<String,
               return None;
             }
 
+            let variant_handler_term = (**arg).clone();
             jump_table.push(JumpTableEntry {
-              variant_handler_term: (**arg).clone(),
-              variant_handler_arg_count: nested_lambda_count,
-              /* net: {
+              net: {
                 let mut net = new_inet();
-                alloc_at(&mut net, &term, ROOT, &function_name_to_data);
+                alloc_at(&mut net, &variant_handler_term, ROOT, function_name_to_id);
                 net
-              }, */
+              },
+              variant_handler_term,
+              variant_handler_arg_count: nested_lambda_count,
             });
             next_inner_app = fun;
           }
@@ -295,7 +300,12 @@ pub type FunctionId = u32;
 
 #[derive(Clone, Debug)]
 pub struct JumpTableEntry {
+  /// The inet for this variant_handler_term
+  pub net: INet,
+
   pub variant_handler_term: Term,
+
+  /// The number of nested lambdas (constructor variant fields)
   pub variant_handler_arg_count: usize,
 }
 
@@ -325,7 +335,7 @@ impl FunctionBook {
     let function_id_to_data = function_id_to_name_and_term
       .iter()
       .map(|(name, term)| {
-        (name, (term, build_jump_table(&term, &function_name_to_term /* , &function_name_to_id */)))
+        (name, (term, build_jump_table(&term, &function_name_to_term, &function_name_to_id)))
       })
       .map(|(name, (term, jump_table))| FunctionData {
         name: (*name).clone(),

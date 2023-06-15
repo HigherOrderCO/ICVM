@@ -4,14 +4,19 @@ use super::*;
 
 // Converts a term to an Interaction Combinator net. Both systems are directly isomorphic, so,
 // each node of the Interaction Calculus correspond to a single Interaction Combinator node.
-pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &FunctionBook) {
+pub fn alloc_at(
+  inet: &mut INet,
+  term: &Term,
+  host: Port,
+  function_name_to_id: &HashMap<FunctionName, FunctionId>,
+) {
   fn encode_term(
     net: &mut INet,
     term: &Term,
     up: Port,
     scope: &mut HashMap<Vec<u8>, u32>,
     vars: &mut Vec<(Vec<u8>, u32)>,
-    function_book: &FunctionBook,
+    function_name_to_id: &HashMap<FunctionName, FunctionId>,
   ) -> Port {
     match term {
       // A lambda becomes to a con node. Ports:
@@ -36,7 +41,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
         let fun = new_node(net, CON);
         if let Some(ref typ) = typ {
           let ann = new_node(net, ANN);
-          let typ = encode_term(net, typ, port(ann, 0), scope, vars, function_book);
+          let typ = encode_term(net, typ, port(ann, 0), scope, vars, function_name_to_id);
           link(net, port(ann, 0), typ);
           link(net, port(fun, 1), port(ann, 1));
           scope.insert(nam.to_vec(), port(ann, 2));
@@ -48,7 +53,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
           link(net, port(era, 1), port(era, 2));
           link(net, port(fun, 1), port(era, 0));
         }
-        let bod = encode_term(net, bod, port(fun, 2), scope, vars, function_book);
+        let bod = encode_term(net, bod, port(fun, 2), scope, vars, function_name_to_id);
         link(net, port(fun, 2), bod);
         port(fun, 0)
       }
@@ -58,9 +63,9 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
       // - 2: points to where the application occurs.
       &App { ref fun, ref arg } => {
         let app = new_node(net, CON);
-        let fun = encode_term(net, fun, port(app, 0), scope, vars, function_book);
+        let fun = encode_term(net, fun, port(app, 0), scope, vars, function_name_to_id);
         link(net, port(app, 0), fun);
-        let arg = encode_term(net, arg, port(app, 1), scope, vars, function_book);
+        let arg = encode_term(net, arg, port(app, 1), scope, vars, function_name_to_id);
         link(net, port(app, 1), arg);
         port(app, 2)
       }
@@ -70,9 +75,9 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
       // - 2: points to the value being annotated.
       &Ann { ref val, ref typ } => {
         let ann = new_node(net, ANN);
-        let val = encode_term(net, val, port(ann, 2), scope, vars, function_book);
+        let val = encode_term(net, val, port(ann, 2), scope, vars, function_name_to_id);
         link(net, port(ann, 2), val);
-        let typ = encode_term(net, typ, port(ann, 0), scope, vars, function_book);
+        let typ = encode_term(net, typ, port(ann, 0), scope, vars, function_name_to_id);
         link(net, port(ann, 0), typ);
         port(ann, 1)
       }
@@ -82,9 +87,9 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
       // - 2: points to the second value.
       &Sup { tag, ref fst, ref snd } => {
         let dup = new_node(net, DUP + tag);
-        let fst = encode_term(net, fst, port(dup, 1), scope, vars, function_book);
+        let fst = encode_term(net, fst, port(dup, 1), scope, vars, function_name_to_id);
         link(net, port(dup, 1), fst);
-        let snd = encode_term(net, snd, port(dup, 2), scope, vars, function_book);
+        let snd = encode_term(net, snd, port(dup, 2), scope, vars, function_name_to_id);
         link(net, port(dup, 2), snd);
         port(dup, 0)
       }
@@ -108,9 +113,9 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
           link(net, port(era, 1), port(era, 2));
           link(net, port(dup, 2), port(era, 0));
         }
-        let val = encode_term(net, &val, port(dup, 0), scope, vars, function_book);
+        let val = encode_term(net, &val, port(dup, 0), scope, vars, function_name_to_id);
         link(net, val, port(dup, 0));
-        encode_term(net, &nxt, up, scope, vars, function_book)
+        encode_term(net, &nxt, up, scope, vars, function_name_to_id)
       }
       // A fix becomes a fix node.
       &Fix { ref nam, ref bod } => {
@@ -122,7 +127,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
           link(net, port(era, 1), port(era, 2));
           link(net, port(fix, 1), port(era, 0));
         }
-        let bod = encode_term(net, bod, port(fix, 0), scope, vars, function_book);
+        let bod = encode_term(net, bod, port(fix, 0), scope, vars, function_name_to_id);
         link(net, port(fix, 0), bod);
         port(fix, 2)
       }
@@ -144,7 +149,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
   let mut scope = HashMap::new();
 
   // Encodes the main term.
-  let main = encode_term(inet, &term, host, &mut scope, &mut vars, function_book);
+  let main = encode_term(inet, &term, host, &mut scope, &mut vars, function_name_to_id);
 
   // Links bound variables.
   for i in 0 .. vars.len() {
@@ -160,8 +165,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, function_book: &Functi
       }
       None => {
         let name = std::str::from_utf8(nam).unwrap();
-        if let Some(_term) = function_book.function_name_to_term.get(name) {
-          let function_id = function_book.function_name_to_id[name];
+        if let Some(function_id) = function_name_to_id.get(name) {
           // println!("ID {name}: {function_id}");
           let node = new_node(inet, FUN + function_id);
           link(inet, port(node, 1), port(node, 2));
@@ -353,9 +357,9 @@ pub fn read_at(net: &INet, host: Port, function_book: &FunctionBook) -> Term {
   main
 }
 
-pub fn to_net(term: &Term, function_book: &FunctionBook) -> INet {
+pub fn to_net(term: &Term, function_name_to_id: &HashMap<FunctionName, FunctionId>) -> INet {
   let mut inet = new_inet();
-  alloc_at(&mut inet, &term, ROOT, function_book);
+  alloc_at(&mut inet, &term, ROOT, function_name_to_id);
   return inet;
 }
 

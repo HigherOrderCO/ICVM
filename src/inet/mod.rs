@@ -278,7 +278,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
               //   (`case_count` future interactions will then map the constructor args to handler args)
               // - Link `arg_ret_port` to `other`'s RET port target (`app_ret_port_target`)
               let constructor_handler = &jump_table[case_idx].variant_handler_term;
-              alloc_at(inet, constructor_handler, arg_port, function_book);
+              alloc_at(inet, constructor_handler, arg_port, &function_book.function_name_to_id);
               link(inet, arg_ret_port, app_ret_port_target);
 
               inet.reuse.push(fun);
@@ -326,7 +326,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
       None
     } else {
       let host = port(other, 0);
-      alloc_at(inet, &function_data.term, host, function_book);
+      alloc_at(inet, &function_data.term, host, &function_book.function_name_to_id);
 
       inet.reuse.push(fun);
 

@@ -148,7 +148,7 @@ impl std::fmt::Display for Term {
 // Reduces an Interaction Calculus term through Interaction Combinators.
 pub fn normalize(term: &Term, function_book: &FunctionBook, fast_dispatch: bool) -> Term {
   let mut net: INet = new_inet();
-  alloc_at(&mut net, &term, ROOT, function_book);
+  alloc_at(&mut net, &term, ROOT, &function_book.function_name_to_id);
   normal(&mut net, function_book, ROOT, fast_dispatch);
   read_at(&net, ROOT, function_book)
 }
@@ -159,7 +159,7 @@ pub fn normalize_with_stats(
   fast_dispatch: bool,
 ) -> (Term, u32, f64) {
   let mut net = new_inet();
-  alloc_at(&mut net, &term, ROOT, function_book);
+  alloc_at(&mut net, &term, ROOT, &function_book.function_name_to_id);
 
   let time = Instant::now();
   normal(&mut net, function_book, ROOT, fast_dispatch);

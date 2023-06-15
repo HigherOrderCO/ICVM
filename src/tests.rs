@@ -76,7 +76,7 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
 
   // Creates the net from term
   let mut inet = new_inet();
-  alloc_at(&mut inet, &term, ROOT, &function_book);
+  alloc_at(&mut inet, &term, ROOT, &function_book.function_name_to_id);
 
   // Equal
   let body = get_body(&inet, ROOT);
@@ -101,11 +101,14 @@ def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false 
 fn test_build_jump_table() {
   fn expect_jump_table(code: &str, expected_jump_table: Option<Vec<(String, usize)>>) {
     let (term, function_book) = from_string(code.as_bytes());
-    let jump_table = build_jump_table(&term, &function_book.function_name_to_term).map(|jt| {
-      jt.into_iter()
-        .map(|jte| (jte.variant_handler_term.to_string(), jte.variant_handler_arg_count))
-        .collect_vec()
-    });
+    let jump_table =
+      build_jump_table(&term, &function_book.function_name_to_term, &function_book.function_name_to_id).map(
+        |jt| {
+          jt.into_iter()
+            .map(|jte| (jte.variant_handler_term.to_string(), jte.variant_handler_arg_count))
+            .collect_vec()
+        },
+      );
     assert_eq!(jump_table, expected_jump_table);
   }
 
