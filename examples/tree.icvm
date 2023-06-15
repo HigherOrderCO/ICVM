@@ -1,0 +1,9 @@
+def T = λt λf t
+def F = λt λf f
+def and = λpλq dup #a p1 p2 = p; (p1 q p2)
+def halfNode = λn λx (n x)
+def Leaf = λn λl l
+def Node = λa λb λn λl (halfNode (halfNode n a) b)
+def Y = λf ((λx (f (x x))) (λx (f (x x))))
+def destroy = (Y λdestroy λt (t (λaλb dup #d destroy1 destroy2 = destroy; (and (destroy1 a) (destroy2 b))) T))
+(destroy (Node Leaf Leaf))

@@ -7,6 +7,7 @@ use crate::{
   term::{alloc_at, read_at, FunctionBook},
   DEBUG,
 };
+use itertools::Itertools;
 use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Clone, Debug)]
@@ -110,6 +111,11 @@ pub fn reduce(
   skip: impl Fn(NodeKind, NodeKind) -> bool,
   fast_dispatch: bool,
 ) {
+  if DEBUG.get().copied().unwrap_or_default() {
+    let term = read_at(inet, ROOT, function_book);
+    println!("S: {}", term);
+  }
+
   let mut path = vec![];
   let mut prev = root;
   loop {
@@ -182,8 +188,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
     } else if let Some(jump_table) = &function_terms.1 {
       if other_kind == CON {
         let case_count = jump_table.len();
-        let app_arg_port = port(other, 1);
-        let app_arg_port_target = enter(inet, app_arg_port);
+        let app_arg_port_target = enter(inet, port(other, 1));
         let app_ret_port_target = enter(inet, port(other, 2));
         let mut next_port_0_of_con = app_arg_port_target;
         let mut con_nodes_visited = 0;
@@ -204,16 +209,6 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
           let arg_kind = kind(inet, node);
           if arg_slot == 0 && arg_kind == CON {
             let lambda_arg_port = enter(inet, port(node, 1));
-            /*let arg_slot = slot(arg_port);
-            if arg_slot != 0 {
-              // If it's not connected to port 0 of a node, it can still be valid,
-              // if it's returning a nullary constructor (as in λx (x) or λa λb λc (b)).
-              // If it isn't connected to port 2 of the final lambda (CON) node, then the
-              // body must be an application of a constructor, so it must connect to port 0 of a CON node.
-              if arg_port != port(node, 2) {
-                break false; // Not connected to port 1 of either ERA or CON node
-              }
-            }*/
             let lambda_arg_node = addr(lambda_arg_port);
             let lambda_arg_kind = kind(inet, lambda_arg_node);
             if lambda_arg_kind != ERA {
@@ -263,9 +258,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
                 // if it's returning a nullary constructor (as in λx (x) or λa λb λc (b)).
                 // If it isn't connected to port 2 of the final lambda (CON) node, then the
                 // body must be an application of a constructor, so it must connect to port 0 of a CON node.
-                // if ret_port != final_lambda_node_body_port {
-                break false; // Not connected to port 1 of either ERA or CON node
-                // }
+                break false; // Not connected to port 0 of either ERA or CON node
               }
               ret_port = enter(inet, port(addr(ret_port), 2)); // Exit through RET port of APP node
 
@@ -277,7 +270,8 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
             if valid_constructor_call {
               let arg_ret_port = enter(inet, final_lambda_node_body_port);
               // Perform fast dispatch:
-              // - Remove APP and FUN node, and the application arg's CON nodes (`case_count`)
+              // - Remove APP and FUN node, and the application arg's lambda (CON) nodes (`case_count`)
+              // - Remove ERA nodes linked to args of the application arg's lambda nodes (`case_count-1`)
               // - Insert handler lambda term from jump_table[case_idx], link to `arg_port` (which
               //   represents the only non-ERA arg of the nested lambdas in the arg to the FUN application)
               //   so that there are `case_count` CON node pairs facing each other
@@ -288,21 +282,33 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
               link(inet, arg_ret_port, app_ret_port_target);
 
               inet.reuse.push(fun);
-              inet.reuse.push(other);
+              inet.reuse.push(other); // APP CON node
 
               // Remove the `case_count` lambda (CON) nodes
-              let mut next = final_lambda_node_body_port;
-              let mut con_nodes_removed = 0;
+              let mut next = app_arg_port_target;
+              let mut con_nodes_visited = 0;
               while {
                 let node = addr(next);
-                inet.reuse.push(node);
-                con_nodes_removed += 1;
+                debug_assert_eq!(slot(next), 0);
                 debug_assert_eq!(kind(inet, node), CON);
-                debug_assert_eq!(slot(next), 2);
-                next = enter(inet, port(node, 0));
-                next != app_arg_port
+
+                // Delete ERA node at each CON node, except the one whose arg isn't an ERA (at `case_idx`)
+                let arg_node = addr(enter(inet, port(node, 1)));
+                if con_nodes_visited != case_idx {
+                  debug_assert_eq!(kind(inet, arg_node), ERA);
+                  inet.reuse.push(arg_node);
+                } else if cfg!(debug_assertions) {
+                  debug_assert_ne!(kind(inet, arg_node), ERA);
+                }
+
+                inet.reuse.push(node);
+                con_nodes_visited += 1;
+
+                next = enter(inet, port(node, 2));
+                next != arg_ret_port
               } {}
-              debug_assert_eq!(con_nodes_removed, case_count);
+              debug_assert_eq!(con_nodes_visited, case_count);
+
               Some(())
             } else {
               None
@@ -326,7 +332,20 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
 
       let y = addr(enter(inet, host));
       let kind_x = other_kind;
-      debug_assert_eq!(kind_x, CON);
+      debug_assert_eq!(
+        kind_x,
+        CON,
+        "\n{:?}\n{:?}\n",
+        function_book.function_id_to_name,
+        function_book
+          .function_id_to_terms
+          .iter()
+          .enumerate()
+          .filter_map(|(i, (_term, jump_table))| jump_table
+            .as_ref()
+            .map(|jt| (&function_book.function_id_to_name[i], jt)))
+          .collect_vec()
+      );
       let kind_y = kind(inet, y);
       Some((y, kind_y))
     }
@@ -338,8 +357,22 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
   let _: Option<()> = try {
     // When one of the nodes is a FUN, replace it with the function net
     let ((x, kind_x), (y, kind_y)) = if kind_x & TAG_MASK == FUN {
+      debug_assert_ne!(
+        kind_y & TAG_MASK,
+        FUN,
+        "{} ~ {}",
+        function_book.function_id_to_name[(kind_x - FUN) as usize],
+        function_book.function_id_to_name[(kind_y - FUN) as usize]
+      );
       ((y, kind_y), insert_function(inet, function_book, x, y, kind_x, kind_y, fast_dispatch)?)
     } else if kind_y & TAG_MASK == FUN {
+      debug_assert_ne!(
+        kind_x & TAG_MASK,
+        FUN,
+        "{} ~ {}",
+        function_book.function_id_to_name[(kind_x - FUN) as usize],
+        function_book.function_id_to_name[(kind_y - FUN) as usize],
+      );
       ((x, kind_x), insert_function(inet, function_book, y, x, kind_y, kind_x, fast_dispatch)?)
     } else {
       ((x, kind_x), (y, kind_y))

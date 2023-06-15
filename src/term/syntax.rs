@@ -11,11 +11,8 @@
 // <name> ::= <alphanumeric_name>
 // <tag>  ::= <positive_integer>
 
-use std::assert_matches::debug_assert_matches;
-
-use itertools::Itertools;
-
 use super::*;
+use itertools::Itertools;
 
 // Parses a name, returns the remaining code and the name.
 fn is_name_char(c: Chr) -> bool {
@@ -72,7 +69,6 @@ pub fn parse_term<'a>(
       let (code, nam) = parse_name(&code[4 ..]);
       let code = parse_text(code, b"=").unwrap();
       let (code, val) = parse_term(code, ctx, idx, functions);
-      debug_assert_matches!(val, Lam { .. }, "Definitions must be lambda terms");
       let code = if code[0] == b';' { &code[1 ..] } else { code };
       // extend(nam, Some(val.clone()), ctx);
       let name = String::from_utf8_lossy(nam).to_string();
