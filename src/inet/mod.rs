@@ -182,10 +182,10 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
     fast_dispatch: bool,
   ) -> Option<(u32, NodeKind)> {
     let function_id = (fun_kind - FUN) as usize;
-    let function_terms = &function_book.function_id_to_terms[function_id];
+    let function_data = &function_book.function_id_to_data[function_id];
     let fast_dispatch_call = if !fast_dispatch {
       None
-    } else if let Some(jump_table) = &function_terms.1 {
+    } else if let Some(jump_table) = &function_data.jump_table {
       if other_kind == CON {
         let case_count = jump_table.len();
         let app_arg_port_target = enter(inet, port(other, 1));
@@ -244,7 +244,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
         };
         match only_non_era_arg {
           Some((arg_port, case_idx)) if found_matching_constructor_call => {
-            let max_constructor_args = jump_table[case_idx].1;
+            let max_constructor_args = jump_table[case_idx].variant_handler_arg_count;
             // Only valid if following ret_port through 0 or more CON nodes (entering through port 0,
             // exiting through port 2) we reach port 2 (body) of the final lambda (CON) node.
             let mut app_nodes_visited = 0;
@@ -277,7 +277,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
               //   so that there are `case_count` CON node pairs facing each other
               //   (`case_count` future interactions will then map the constructor args to handler args)
               // - Link `arg_ret_port` to `other`'s RET port target (`app_ret_port_target`)
-              let constructor_handler = &jump_table[case_idx].0;
+              let constructor_handler = &jump_table[case_idx].variant_handler_term;
               alloc_at(inet, constructor_handler, arg_port, function_book);
               link(inet, arg_ret_port, app_ret_port_target);
 
@@ -326,7 +326,7 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
       None
     } else {
       let host = port(other, 0);
-      alloc_at(inet, &function_terms.0, host, function_book);
+      alloc_at(inet, &function_data.term, host, function_book);
 
       inet.reuse.push(fun);
 
@@ -336,14 +336,15 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
         kind_x,
         CON,
         "\n{:?}\n{:?}\n",
-        function_book.function_id_to_name,
+        function_book.function_id_to_data.iter().map(|data| &data.name).collect_vec(),
         function_book
-          .function_id_to_terms
+          .function_id_to_data
           .iter()
           .enumerate()
-          .filter_map(|(i, (_term, jump_table))| jump_table
+          .filter_map(|(i, data)| data
+            .jump_table
             .as_ref()
-            .map(|jt| (&function_book.function_id_to_name[i], jt)))
+            .map(|jt| (&function_book.function_id_to_data[i].name, jt)))
           .collect_vec()
       );
       let kind_y = kind(inet, y);
@@ -361,8 +362,8 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
         kind_y & TAG_MASK,
         FUN,
         "{} ~ {}",
-        function_book.function_id_to_name[(kind_x - FUN) as usize],
-        function_book.function_id_to_name[(kind_y - FUN) as usize]
+        function_book.function_id_to_data[(kind_x - FUN) as usize].name,
+        function_book.function_id_to_data[(kind_y - FUN) as usize].name
       );
       ((y, kind_y), insert_function(inet, function_book, x, y, kind_x, kind_y, fast_dispatch)?)
     } else if kind_y & TAG_MASK == FUN {
@@ -370,8 +371,8 @@ pub fn rewrite(inet: &mut INet, function_book: &FunctionBook, x: NodeId, y: Node
         kind_x & TAG_MASK,
         FUN,
         "{} ~ {}",
-        function_book.function_id_to_name[(kind_x - FUN) as usize],
-        function_book.function_id_to_name[(kind_y - FUN) as usize],
+        function_book.function_id_to_data[(kind_x - FUN) as usize].name,
+        function_book.function_id_to_data[(kind_y - FUN) as usize].name,
       );
       ((x, kind_x), insert_function(inet, function_book, y, x, kind_y, kind_x, fast_dispatch)?)
     } else {

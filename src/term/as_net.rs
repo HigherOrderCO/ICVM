@@ -289,7 +289,7 @@ pub fn read_at(net: &INet, host: Port, function_book: &FunctionBook) -> Term {
         _ => Set,
       },
       tag if tag & TAG_MASK == FUN => {
-        Var { nam: function_book.function_id_to_name[(tag - FUN) as usize].as_bytes().to_vec() }
+        Var { nam: function_book.function_id_to_data[(tag - FUN) as usize].name.as_bytes().to_vec() }
       }
       // If we're visiting a fan node...
       tag => match slot(next) {

@@ -197,10 +197,7 @@ pub fn parse_term<'a>(
 /// E.g. λn (n (λp (S (S (F p)))) Z)
 /// case S => λp (S (S (F p)))
 /// case Z => Z
-pub fn build_jump_table(
-  function: &Term,
-  function_name_to_term: &HashMap<String, Term>,
-) -> Option<Vec<(Term, usize)>> {
+pub fn build_jump_table(function: &Term, function_name_to_term: &HashMap<String, Term>) -> Option<JumpTable> {
   match &function {
     Lam { nam, typ: _, bod } => {
       let mut ctx = vec![nam];
@@ -269,7 +266,15 @@ pub fn build_jump_table(
               return None;
             }
 
-            jump_table.push(((**arg).clone(), nested_lambda_count));
+            jump_table.push(JumpTableEntry {
+              variant_handler_term: (**arg).clone(),
+              variant_handler_arg_count: nested_lambda_count,
+              /* net: {
+                let mut net = new_inet();
+                alloc_at(&mut net, &term, ROOT, &function_name_to_data);
+                net
+              }, */
+            });
             next_inner_app = fun;
           }
           _ => return None,
@@ -288,36 +293,50 @@ pub fn build_jump_table(
 pub type FunctionName = String;
 pub type FunctionId = u32;
 
+#[derive(Clone, Debug)]
+pub struct JumpTableEntry {
+  pub variant_handler_term: Term,
+  pub variant_handler_arg_count: usize,
+}
+
+pub type JumpTable = Vec<JumpTableEntry>;
+
+pub struct FunctionData {
+  pub name: FunctionName,
+  pub term: Term,
+  pub jump_table: Option<JumpTable>,
+}
+
 pub struct FunctionBook {
   pub function_name_to_term: HashMap<FunctionName, Term>,
-  pub function_id_to_terms: Vec<(Term, Option<Vec<(Term, usize)>>)>,
-  pub function_id_to_name: Vec<FunctionName>,
   pub function_name_to_id: HashMap<FunctionName, FunctionId>,
+  pub function_id_to_data: Vec<FunctionData>,
 }
 
 impl FunctionBook {
   fn new(function_name_to_term: HashMap<String, Term>) -> Self {
     let function_name_to_terms = function_name_to_term
       .iter()
-      .map(|(name, term)| {
-        let jump_table = build_jump_table(&term, &function_name_to_term);
-        (name, (term, jump_table))
-      })
+      .map(|(name, term)| (name, (term, build_jump_table(&term, &function_name_to_term))))
       .collect::<HashMap<_, _>>();
 
-    let (function_id_to_name, function_id_to_terms): (Vec<_>, Vec<_>) = function_name_to_terms
+    let function_id_to_data = function_name_to_terms
       .into_iter()
       .sorted_by_key(|&(name, _)| name)
-      .map(|(name, (term, jump_table_terms))| (name.clone(), (term.clone(), jump_table_terms.clone())))
-      .unzip();
+      .map(|(name, (term, jump_table))| FunctionData {
+        name: name.clone(),
+        term: term.clone(),
+        jump_table: jump_table.clone(),
+      })
+      .collect_vec();
 
-    let function_name_to_id = function_id_to_name
+    let function_name_to_id = function_id_to_data
       .iter()
       .enumerate()
-      .map(|(i, name)| (name.to_owned(), i as FunctionId))
+      .map(|(i, data)| (data.name.to_owned(), i as FunctionId))
       .collect::<HashMap<FunctionName, FunctionId>>();
 
-    Self { function_name_to_term, function_id_to_terms, function_id_to_name, function_name_to_id }
+    Self { function_name_to_term, function_name_to_id, function_id_to_data }
   }
 }
 
