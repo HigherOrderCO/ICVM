@@ -24,8 +24,8 @@ formalization [here](https://github.com/HigherOrderCO/Kindex/blob/master/Apps/IC
 ## 1. Install
 
 ```bash
-git clone https://github.com/victortaelin/interaction_calculus
-cd interaction_calculus
+git clone https://github.com/HigherOrderCO/ICVM-lazy.git
+cd ICVM-lazy 
 cargo install --path .
 ```
 
